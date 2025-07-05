@@ -31,7 +31,7 @@
   - Bootstrap
   - Axios 
   - API
-  - Github 
+  - Github 1
   
  + How to run and config project after clone
   
