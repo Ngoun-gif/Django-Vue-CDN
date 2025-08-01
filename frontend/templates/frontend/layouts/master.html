@@ -1,0 +1,32 @@
+{% load static %}
+
+<html lang="en">
+  
+<head>
+
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="" name="keywords">
+    <meta content="" name="description">
+
+    <title>{% block title %}CarServ{% endblock %}</title>
+    <link rel="icon" href="{% static 'frontend/img/favicon.ico' %}" type="icon">
+
+    <!-- CSS -->
+    {% include 'frontend/layouts/css.html' %}
+
+</head>
+
+<body>
+    <!-- Header -->
+    {% include 'frontend/layouts/header.html' %}
+    <!-- Main Content -->
+    {% block content %}
+    {% endblock %}
+    <!-- Footer -->
+    {% include 'frontend/layouts/footer.html' %}
+    <!-- JS -->
+    {% include 'frontend/layouts/js.html' %}
+
+</body>
+</html>

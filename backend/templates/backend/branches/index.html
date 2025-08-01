@@ -1,0 +1,212 @@
+{% extends "backend/layouts/master.html" %}
+
+{% block content %}
+<div id="branchApp" class="container-fluid px-4">
+  <h1 class="h3 mb-4 text-gray-800">Branch Management</h1>
+
+  <!-- CSRF Token -->
+  <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+
+  <!-- Create Button -->
+  <div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#branchModal" @click="resetForm">
+      <i class="fas fa-plus fa-sm text-white-50"></i> Add Branch
+    </button>
+  </div>
+
+  <!-- Branch List -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 bg-primary text-white">
+      <h6 class="m-0 font-weight-bold">Branch List</h6>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover text-center">
+          <thead class="bg-light">
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(branch, index) in branches" :key="branch.id">
+              <td>[[ index + 1 ]]</td>
+              <td>[[ branch.name ]]</td>
+              <td>[[ branch.address ]]</td>
+              <td>[[ branch.phone ]]</td>
+              <td>[[ branch.email ]]</td>
+              <td>
+                <button class="btn btn-sm btn-warning me-1" @click="editBranch(branch)">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" @click="confirmDelete(branch)">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </td>
+            </tr>
+            <tr v-if="branches.length === 0">
+              <td colspan="6" class="text-center">No branches found</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Branch Form Modal -->
+  <div class="modal fade" id="branchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">[[ editMode ? 'Edit Branch' : 'Add New Branch' ]]</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div v-if="formError" class="alert alert-danger">[[ formError ]]</div>
+
+          <div class="mb-3">
+            <label class="form-label">Branch Name</label>
+            <input v-model="form.name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Address</label>
+            <input v-model="form.address" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Phone</label>
+            <input v-model="form.phone" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input v-model="form.email" type="email" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" @click="saveBranch">
+            [[ editMode ? 'Update' : 'Save' ]]
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JS/CSS Includes -->
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  delimiters: ['[[', ']]'],
+  data() {
+    return {
+      branches: [],
+      form: {
+        id: null,
+        name: '',
+        address: '',
+        phone: '',
+        email: ''
+      },
+      editMode: false,
+      formError: null,
+      apiUrl: "http://127.0.0.1:8005/api/branches/",
+      selectedBranch: null
+    };
+  },
+  methods: {
+    async getBranches() {
+      try {
+        const response = await axios.get(this.apiUrl);
+        this.branches = response.data.results;
+      } catch (error) {
+        console.error("Error loading branches:", error);
+      }
+    },
+    async saveBranch() {
+      this.formError = null;
+      const csrfToken = document.getElementById('csrf-token').value;
+      const config = { headers: { 'X-CSRFToken': csrfToken } };
+
+      try {
+        if (this.editMode) {
+          await axios.put(`${this.apiUrl}${this.form.id}/`, this.form, config);
+          Swal.fire('Updated!', 'Branch updated successfully.', 'success');
+        } else {
+          await axios.post(this.apiUrl, this.form, config);
+          Swal.fire('Saved!', 'Branch added successfully.', 'success');
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('branchModal')).hide();
+        this.getBranches();
+        this.resetForm();
+      } catch (error) {
+        this.handleFormError(error);
+      }
+    },
+    handleFormError(error) {
+      if (error.response && error.response.data) {
+        this.formError = Object.values(error.response.data).flat().join(' ');
+      } else {
+        this.formError = "An error occurred. Please try again.";
+      }
+    },
+    editBranch(branch) {
+      this.form = { ...branch };
+      this.editMode = true;
+      new bootstrap.Modal(document.getElementById('branchModal')).show();
+    },
+    confirmDelete(branch) {
+      this.selectedBranch = branch;
+      Swal.fire({
+        title: 'Are you sure?',
+        text: "You won't be able to revert this!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete it!'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          this.deleteBranch();
+        }
+      });
+    },
+    async deleteBranch() {
+      const csrfToken = document.getElementById('csrf-token').value;
+      const config = { headers: { 'X-CSRFToken': csrfToken } };
+
+      try {
+        await axios.delete(`${this.apiUrl}${this.selectedBranch.id}/`, config);
+        Swal.fire('Deleted!', 'Branch has been deleted.', 'success');
+        this.getBranches();
+      } catch (error) {
+        Swal.fire('Error!', 'Failed to delete branch.', 'error');
+      }
+    },
+    resetForm() {
+      this.form = {
+        id: null,
+        name: '',
+        address: '',
+        phone: '',
+        email: ''
+      };
+      this.editMode = false;
+      this.formError = null;
+    }
+  },
+  mounted() {
+    this.getBranches();
+  }
+}).mount('#branchApp');
+</script>
+{% endblock %}

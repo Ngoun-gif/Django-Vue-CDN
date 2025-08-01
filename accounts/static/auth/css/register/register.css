@@ -1,0 +1,238 @@
+
+        /* Your existing styles here (same as in login.html) */
+        @import url('https://fonts.googleapis.com/css?family=Montserrat:400,800');
+
+    :root {
+        --primary-color: #df4e50;
+        --primary-hover: #c82333;
+        --text-color: #111112;
+        --light-gray: #f0f2f8;
+        --dark-gray: #dbe4f3;
+        --white: #ffffff;
+    }
+
+    body {
+        background: linear-gradient(to bottom right, var(--light-gray), var(--dark-gray));
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Montserrat', sans-serif;
+        padding: 20px;
+    }
+
+    .login-container {
+        background: var(--white);
+        border-radius: 12px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        display: flex;
+        max-width: 1200px;
+        width: 100%;
+    }
+
+    .auth-image {
+        background: url('https://www.seat.ps/content/dam/public/seat-website/seat-cars/car-maintenance/article-single-image-maintenance/seat-services-and-repair-maintenance.jpg') center center/cover no-repeat;
+        width: 50%;
+        position: relative;
+        transition: transform 0.3s ease;
+    }
+
+    .auth-image:hover {
+        transform: scale(1.03);
+    }
+
+    .auth-image::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        transition: background 0.3s ease;
+    }
+
+    .auth-image:hover::before {
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .auth-image-content {
+        position: absolute;
+        bottom: 40px;
+        left: 40px;
+        color: white;
+        z-index: 1;
+    }
+
+    .auth-image-content h2 {
+        font-weight: 700;
+        margin-bottom: 10px;
+        font-size: 1.8rem;
+    }
+
+    .auth-image-content p {
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+
+    .login-form {
+        padding: 50px;
+        width: 50%;
+    }
+
+    .form-control {
+        border-radius: 0.5rem;
+        padding: 1rem;
+        border: 1px solid #e2e8f0;
+        transition: all 0.3s;
+    }
+
+    .form-control:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.25rem rgba(223, 78, 80, 0.25);
+    }
+
+    .btn-login {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        border-radius: 8px;
+        transition: all 0.3s;
+    }
+
+    .btn-login:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-2px);
+        color: white !important;
+    }
+
+    .btn-outline-danger {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .btn-outline-danger:hover {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .social-login i {
+        font-size: 18px;
+    }
+
+    .underline-link {
+        text-decoration: underline;
+        transition: all 0.2s;
+    }
+
+    .underline-link:hover {
+        color: var(--primary-hover);
+    }
+
+    .form-check-input {
+        width: 1.1em;
+        height: 1.1em;
+        margin-top: 0.15em;
+        cursor: pointer;
+        border: 1px solid var(--primary-color);
+    }
+
+    .form-check-input:checked {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .form-check-input:focus {
+        box-shadow: 0 0 0 0.25rem rgba(223, 78, 80, 0.25);
+    }
+
+    .form-check-label {
+        margin-left: 0.5em;
+        color: var(--primary-color);
+        cursor: pointer;
+    }
+
+    label {
+        color: var(--text-color);
+        font-weight: 500;
+        margin-bottom: 8px;
+    }
+
+    a {
+        color: var(--primary-color);
+        text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+        .login-container {
+            flex-direction: column;
+        }
+
+        .auth-image,
+        .login-form {
+            width: 100%;
+        }
+
+        .auth-image {
+            height: 200px;
+        }
+
+        .auth-image-content {
+            bottom: 20px;
+            left: 20px;
+        }
+
+        .auth-image-content h2 {
+            font-size: 1.5rem;
+        }
+
+        .auth-image-content p {
+            font-size: 0.9rem;
+        }
+
+        .login-form {
+            padding: 30px;
+        }
+
+        .auth-image:hover {
+            transform: none;
+        }
+
+        .btn-login:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            color: white !important;
+        }
+
+        footer {
+            background-color: #222;
+            color: #fff;
+            font-size: 14px;
+            text-align: center;
+            padding: 15px 0;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        footer i {
+            color: red;
+        }
+
+        footer a {
+            color: #3c97bf;
+            text-decoration: none;
+        }
+
+        #password::placeholder,
+        #password_confirmation::placeholder {
+            font-size: 0.85rem;
+            color: #888;
+        }
+    }
+

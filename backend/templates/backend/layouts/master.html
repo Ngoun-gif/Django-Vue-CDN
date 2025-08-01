@@ -1,0 +1,45 @@
+{% load static %}
+
+<html lang="en">
+  
+<head>
+
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="" name="keywords">
+    <meta content="" name="description">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}Backend{% endblock %}</title>
+    <link rel="icon" href="{% static 'frontend/img/favicon.ico' %}" type="icon">
+
+    <!-- CSS -->
+    {% include 'backend/layouts/css.html' %}
+
+    
+
+</head>
+
+
+<body  id="page-top" >
+    <!-- Page Wrapper -->
+    <div id="wrapper">
+        <!-- Sidebar -->
+        {% include 'backend/layouts/sidebar.html' %}
+        <!-- End of Sidebar -->
+        <!-- Content Wrapper -->
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                {% include 'backend/layouts/header.html' %}
+                <div id="content">
+                    {% block content %}
+                    <!-- Main content goes here -->
+                    {% endblock %}
+                </div>
+            </div>
+            {% include 'backend/layouts/footer.html' %}
+        </div>
+        {% include 'backend/layouts/js.html' %}
+    </div>
+    
+</body>
+</html>
