@@ -1,22 +1,27 @@
 # backend/models/booking.py
 
 from django.db import models
-from django.contrib.auth.models import User
+from backend.models.customer import Customer
 from .branch import Branch
+from .product_service import Service
 
 class Booking(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True)
-    service_type = models.CharField(max_length=100)
+    service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True)
     booking_date = models.DateField()
     booking_time = models.TimeField()
-    status = models.CharField(max_length=20, choices=[
-        ('pending', 'Pending'),
-        ('confirmed', 'Confirmed'),
-        ('completed', 'Completed'),
-        ('cancelled', 'Cancelled'),
-    ], default='pending')
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('confirmed', 'Confirmed'),
+            ('completed', 'Completed'),
+            ('cancelled', 'Cancelled'),
+        ],
+        default='pending'
+    )
     notes = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.booking_date}"
+        return f"{self.customer} - {self.booking_date}"

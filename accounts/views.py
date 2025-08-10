@@ -42,32 +42,51 @@ def login_view(request):
 # ---------------------
 # Register View
 # ---------------------
+from django.contrib.auth.models import User
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.db import IntegrityError
+from accounts.models import Role, UserRole
+from backend.models.customer import Customer  # update path as needed
+
 def register_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
         email = request.POST.get('email')
 
+        # Validate required fields
         if not username or not password or not email:
             messages.error(request, 'Please fill in all required fields.')
             return render(request, 'auth/register.html')
 
         try:
+            # Create User
             user = User.objects.create_user(username=username, email=email, password=password)
 
-            # Assign default role (Customer)
+            # Assign role: Customer
             customer_role, _ = Role.objects.get_or_create(name='Customer')
             UserRole.objects.create(user=user, role=customer_role)
+
+            # Create Customer with minimal info
+            Customer.objects.create(
+                user=user,
+                phone='',  # Empty for now
+                name=username,  # name from username
+            )
 
             messages.success(request, 'Account created successfully. You can now log in.')
             return redirect('login')
 
         except IntegrityError:
-            messages.error(request, 'Username already exists. Please choose another.')
+            messages.error(request, 'Username already exists.')
         except Exception as e:
             messages.error(request, f'Unexpected error: {str(e)}')
 
     return render(request, 'auth/register.html')
+
+
+
 
 
 # ---------------------

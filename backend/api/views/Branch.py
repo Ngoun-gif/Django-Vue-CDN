@@ -9,3 +9,4 @@ class BranchViewSet(viewsets.ModelViewSet):
     serializer_class = BranchSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['name', 'address', 'phone', 'email']  # Fields you want to search
+

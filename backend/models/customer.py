@@ -1,10 +1,10 @@
+# backend/models/customer.py
 from django.db import models
 from django.contrib.auth.models import User
 
 class Customer(models.Model):
-    objects = None
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    phone = models.CharField(max_length=20)
+    phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=10, choices=[
@@ -15,4 +15,4 @@ class Customer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.user.get_full_name() or self.user.username
+        return self.user.username

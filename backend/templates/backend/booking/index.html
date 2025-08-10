@@ -1,33 +1,453 @@
-{% extends 'backend/base.html' %}
+{% extends "backend/layouts/master.html" %}
+
 {% block content %}
-<div class="container-fluid">
-    <h1 class="h3 mb-4 text-gray-800">Booking Management</h1>
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">All Bookings</h6>
-            <a href="{{ current_role }}/booking/add/" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus"></i> New Booking
-            </a>
+<div id="bookingApp" class="container-fluid px-4 py-3" style="position: relative;">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
+            <li class="breadcrumb-item active">Bookings</li>
+        </ol>
+    </nav>
+
+    <div v-if="message" class="alert alert-success" role="alert">
+        [[ message ]]
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="w-50">
+            <div class="input-group">
+                <input 
+                    v-model="searchQuery" 
+                    @input="debouncedFetch" 
+                    type="text" 
+                    class="form-control" 
+                    placeholder="Search bookings..."
+                    aria-label="Search bookings"
+                >
+            </div>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                    <thead>
-                        <tr>
-                            <th>Booking ID</th>
-                            <th>Customer</th>
-                            <th>Service</th>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Data will be populated via JavaScript or Django context -->
-                    </tbody>
-                </table>
+        
+        <button class="btn btn-primary" @click="openModal('add')">
+            <i class="fas fa-plus me-1"></i> Add Booking
+        </button> 
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover text-center">
+            <thead class="table-light">
+                <tr>
+                    <th>Booking ID</th>
+                    <th>Branch</th>
+                    <th>Customer</th>
+                    <th>Service</th>
+                    <th>Booking Date</th>
+                    <th>Booking Time</th>
+                    <th>Status</th>
+                    <th>Note</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="booking in bookings" :key="booking.id">
+                    <td>[[ booking.id ]]</td>
+                    <td>[[ booking.branch.name ]]</td>
+                    <td>[[ booking.customer.customer_name ]]</td>
+                    <td>[[ booking.service.name ]]</td>
+                    <td>[[ formatDate(booking.booking_date) ]]</td>
+                    <td>[[ formatTime(booking.booking_time) ]]</td>
+                    <td>
+                        <span :class="getStatusClass(booking.status)">[[ capitalize(booking.status) ]]</span>
+                    </td>
+                    <td>[[ booking.notes || 'N/A' ]]</td>
+                    <td style="display: flex; gap: 0.5rem; justify-content: center;">
+                        <button class="btn btn-sm btn-warning" @click="openModal('edit', booking)" :disabled="isLoading">Edit</button>
+                        <button class="btn btn-sm btn-danger" @click="deleteBooking(booking.id)" :disabled="isLoading">Delete</button>
+                    </td>
+                </tr>
+                <tr v-if="bookings.length === 0 && !isLoading">
+                    <td colspan="9" class="text-muted">No bookings found.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav v-if="totalPages > 1">
+        <ul class="pagination justify-content-end">
+            <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">Previous</a>
+            </li>
+            <li class="page-item" v-for="page in totalPages" :class="{ active: currentPage === page }" :key="page">
+                <a class="page-link" href="#" @click.prevent="changePage(page)">[[ page ]]</a>
+            </li>
+            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next</a>
+            </li>
+        </ul>
+    </nav>
+
+    <div v-if="isLoading" class="loading-overlay d-flex justify-content-center align-items-center">
+        <div class="spinner-border text-primary" role="status" aria-label="Loading..."></div>
+    </div>
+
+    <div class="modal fade" id="bookingModal" tabindex="-1" aria-labelledby="bookingModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form @submit.prevent="saveBooking" novalidate>
+                    <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="bookingModalLabel">[[ modalTitle ]]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" :disabled="isLoading"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <label for="branchSelect" class="form-label">Branch *</label>
+                            <select id="branchSelect" v-model="form.branch" class="form-control" required :disabled="isLoading" aria-describedby="branchError">
+                                <option :value="null" disabled>Select a branch...</option>
+                                <option v-for="branch in branches" :value="branch.id" :key="branch.id">[[ branch.name ]]</option>
+                            </select>
+                            <div v-if="errors.branch" class="text-danger small" id="branchError">[[ errors.branch[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="customerSelect" class="form-label">Customer *</label>
+                            <select id="customerSelect" v-model="form.customer" class="form-control" required :disabled="isLoading" aria-describedby="customerError">
+                                <option :value="null" disabled>Select a customer...</option>
+                                <option v-for="customer in customers" :value="customer.id" :key="customer.id">[[ customer.customer_name ]]</option>
+                            </select>
+                            <div v-if="errors.customer" class="text-danger small" id="customerError">[[ errors.customer[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="serviceSelect" class="form-label">Service *</label>
+                            <select id="serviceSelect" v-model="form.service" class="form-control" required :disabled="isLoading" aria-describedby="serviceError">
+                                <option :value="null" disabled>Select a service...</option>
+                                <option v-for="service in services" :value="service.id" :key="service.id">[[ service.name ]]</option>
+                            </select>
+                            <div v-if="errors.service" class="text-danger small" id="serviceError">[[ errors.service[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="dateInput" class="form-label">Booking Date *</label>
+                            <input id="dateInput" v-model="form.booking_date" type="date" class="form-control" required :disabled="isLoading" aria-describedby="dateError">
+                            <div v-if="errors.booking_date" class="text-danger small" id="dateError">[[ errors.booking_date[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="timeInput" class="form-label">Booking Time *</label>
+                            <input id="timeInput" v-model="form.booking_time" type="time" class="form-control" required :disabled="isLoading" aria-describedby="timeError">
+                            <div v-if="errors.booking_time" class="text-danger small" id="timeError">[[ errors.booking_time[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="statusSelect" class="form-label">Status *</label>
+                            <select id="statusSelect" v-model="form.status" class="form-control" required :disabled="isLoading" aria-describedby="statusError">
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                            <div v-if="errors.status" class="text-danger small" id="statusError">[[ errors.status[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="notesTextarea" class="form-label">Note</label>
+                            <textarea id="notesTextarea" v-model="form.notes" class="form-control" rows="3" :disabled="isLoading" aria-describedby="notesError"></textarea>
+                            <div v-if="errors.notes" class="text-danger small" id="notesError">[[ errors.notes[0] ]]</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success" :disabled="isLoading">
+                            <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            [[ status === 'add' ? 'Create' : 'Update' ]]
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" :disabled="isLoading">Cancel</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.6);
+    z-index: 1055;
+}
+.status-badge {
+    padding: 0.25em 0.6em;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 0.25rem;
+}
+.status-pending { background-color: #ffc107; color: #000; }
+.status-confirmed { background-color: #0d6efd; }
+.status-completed { background-color: #198754; }
+.status-cancelled { background-color: #dc3545; }
+</style>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function getCSRFToken() {
+    const csrfCookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+    return csrfCookie ? csrfCookie.split('=')[1] : null;
+}
+
+const { createApp } = Vue;
+
+createApp({
+    delimiters: ['[[', ']]'],
+    data() {
+        return {
+            csrfToken: getCSRFToken(),
+            bookings: [],
+            branches: [],
+            customers: [],
+            services: [],
+            form: { 
+                id: null,
+                branch: null,
+                customer: null,
+                service: null,
+                booking_date: '',
+                booking_time: '',
+                status: 'pending',
+                notes: '' 
+            },
+            modalTitle: '',
+            status: 'add',
+            message: '',
+            searchQuery: '',
+            currentPage: 1,
+            totalPages: 1,
+            perPage: 10,
+            isLoading: false,
+            errors: {}
+        };
+    },
+    mounted() {
+        this.debouncedFetch = this.debounce(this.fetchBookings, 300);
+        this.fetchBookings();
+        this.fetchBranches();
+        this.fetchCustomers();
+        this.fetchServices();
+
+        const modalEl = document.getElementById('bookingModal');
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            this.errors = {};
+            this.resetForm();
+        });
+    },
+    methods: {
+        debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        },
+        async fetchBookings() {
+            this.isLoading = true;
+            try {
+                const response = await axios.get('/api/bookings/', {
+                    params: {
+                        search: this.searchQuery,
+                        page: this.currentPage,
+                        page_size: this.perPage
+                    },
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                
+                this.bookings = response.data.results || response.data;
+                this.totalPages = Math.ceil((response.data.count || response.data.length) / this.perPage);
+            } catch (error) {
+                console.error("Error fetching bookings:", error);
+                this.showError("Failed to load bookings");
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        async fetchBranches() {
+            try {
+                const response = await axios.get('/api/branches/', {
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                this.branches = response.data.results || response.data;
+            } catch (error) {
+                console.error("Error fetching branches:", error);
+            }
+        },
+        async fetchCustomers() {
+            try {
+                const response = await axios.get('/api/customers/', {
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                this.customers = response.data.results || response.data;
+            } catch (error) {
+                console.error("Error fetching customers:", error);
+            }
+        },
+        async fetchServices() {
+            try {
+                const response = await axios.get('/api/services/', {
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                this.services = response.data.results || response.data;
+            } catch (error) {
+                console.error("Error fetching services:", error);
+            }
+        },
+        openModal(status, booking = null) {
+            this.status = status;
+            this.modalTitle = status === 'add' ? 'Add Booking' : 'Edit Booking';
+            this.errors = {};
+            
+            this.resetForm();
+            
+            if (status === 'edit' && booking) {
+                this.form = {
+                    id: booking.id,
+                    branch: booking.branch.id,
+                    customer: booking.customer.id,
+                    service: booking.service.id,
+                    booking_date: booking.booking_date,
+                    booking_time: booking.booking_time,
+                    status: booking.status,
+                    notes: booking.notes || '' 
+                };
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('bookingModal'));
+            modal.show();
+        },
+        resetForm() {
+            this.form = { 
+                id: null,
+                branch: null,
+                customer: null,
+                service: null,
+                booking_date: '',
+                booking_time: '',
+                status: 'pending',
+                notes: '' 
+            };
+        },
+        async saveBooking() {
+            this.isLoading = true;
+            this.errors = {};
+            
+            try {
+                const url = this.status === 'add' ? '/api/bookings/' : `/api/bookings/${this.form.id}/`;
+                const method = this.status === 'add' ? 'post' : 'put';
+                
+                const payload = {
+                    branch_id: this.form.branch,
+                    customer_id: this.form.customer,
+                    service_id: this.form.service,
+                    booking_date: this.form.booking_date,
+                    booking_time: this.form.booking_time,
+                    status: this.form.status,
+                    notes: this.form.notes 
+                };
+                
+                await axios({
+                    method,
+                    url,
+                    data: payload,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken
+                    }
+                });
+                
+                this.fetchBookings();
+                bootstrap.Modal.getInstance(document.getElementById('bookingModal')).hide();
+                this.showSuccess(this.status === 'add' ? 'Booking created successfully!' : 'Booking updated successfully!');
+            } catch (error) {
+                if (error.response?.status === 400) {
+                    this.errors = error.response.data;
+                } else {
+                    console.error("Error saving booking:", error);
+                    this.showError("Failed to save booking");
+                }
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        deleteBooking(id) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Delete',
+                cancelButtonText: 'Cancel'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    try {
+                        await axios.delete(`/api/bookings/${id}/`, {
+                            headers: { 'X-CSRFToken': this.csrfToken }
+                        });
+                        this.fetchBookings();
+                        this.showSuccess('Booking deleted successfully!');
+                    } catch (error) {
+                        console.error("Error deleting booking:", error);
+                        this.showError("Failed to delete booking");
+                    }
+                }
+            });
+        },
+        changePage(page) {
+            if (page < 1 || page > this.totalPages) return;
+            this.currentPage = page;
+            this.fetchBookings();
+        },
+        showSuccess(message) {
+            this.message = message;
+            setTimeout(() => this.message = '', 3000);
+        },
+        showError(message) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message
+            });
+        },
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+        formatTime(timeStr) {
+            if (!timeStr) return '';
+            const [hours, minutes] = timeStr.split(':');
+            const date = new Date();
+            date.setHours(hours, minutes, 0);
+            return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true });
+        },
+        capitalize(str) {
+            if (!str) return '';
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        },
+        getStatusClass(status) {
+            const statusMap = {
+                'pending': 'status-pending',
+                'confirmed': 'status-confirmed',
+                'completed': 'status-completed',
+                'cancelled': 'status-cancelled'
+            };
+            return ['status-badge', statusMap[status] || ''];
+        }
+    }
+}).mount('#bookingApp');
+</script>
 {% endblock %}

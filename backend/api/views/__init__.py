@@ -10,10 +10,6 @@ class BookingViewSet:
     pass
 
 
-class InvoiceViewSet:
-    pass
-
-
 class BranchViewSet:
     pass
 

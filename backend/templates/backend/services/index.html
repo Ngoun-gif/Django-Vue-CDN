@@ -1,0 +1,273 @@
+{% extends "backend/layouts/master.html" %}
+
+{% block content %}
+<div id="serviceApp" class="container-fluid px-4 py-3">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
+      <li class="breadcrumb-item active">Services</li>
+    </ol>
+  </nav>
+
+  <!-- Alert -->
+  <div v-if="message" class="alert alert-success" role="alert">
+    [[ message ]]
+  </div>
+
+  <!-- Search and Add -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="w-50">
+      <div class="input-group">
+        <input 
+          v-model="searchQuery" 
+          @input="fetchServices" 
+          type="text" 
+          class="form-control" 
+          placeholder="Search service...">
+      </div>
+    </div>
+    <button class="btn btn-primary" @click="openModal('add')">
+      <i class="fas fa-plus me-1"></i> Add Service
+    </button>
+  </div>
+
+  <!-- Services Table -->
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover text-center">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Price ($)</th>
+          <th>Duration (min)</th>
+          <th>Category</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(service, index) in services" :key="service.id">
+          <td>[[ index + 1 ]]</td>
+          <td>[[ service.name ]]</td>
+          <td>[[ service.description || '—' ]]</td>
+          <td>$[[ service.price ]]</td>
+          <td>[[ service.duration_minutes ]] min</td>
+          <td>[[ getCategoryName(service.category) ]]</td>
+          <td style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-sm btn-warning" @click="openModal('edit', service)">Edit</button>
+            <button class="btn btn-sm btn-danger" @click="deleteService(service.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <nav v-if="totalPages > 1">
+    <ul class="pagination justify-content-end">
+      <li class="page-item" :class="{ disabled: currentPage === 1 }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">Previous</a>
+      </li>
+      <li class="page-item" v-for="page in totalPages" :class="{ active: currentPage === page }" :key="page">
+        <a class="page-link" href="#" @click.prevent="changePage(page)">[[ page ]]</a>
+      </li>
+      <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Modal -->
+  <div class="modal fade" id="serviceModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form @submit.prevent="saveService">
+          <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken">
+          <div class="modal-header">
+            <h5 class="modal-title">[[ modalTitle ]]</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label>Name</label>
+              <input v-model="form.name" type="text" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label>Description</label>
+              <textarea v-model="form.description" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="mb-2">
+              <label>Price ($)</label>
+              <input v-model="form.price" type="number" step="0.01" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label>Duration (minutes)</label>
+              <input v-model="form.duration_minutes" type="number" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label>Category</label>
+              <select v-model="form.category" class="form-control" required>
+                <option v-for="cat in categories" :value="cat.id">[[ cat.name ]]</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-success">Save</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vue & Axios -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      cookie = cookie.trim();
+      if (cookie.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+const csrfToken = getCookie('csrftoken');
+
+axios.defaults.xsrfHeaderName = "X-CSRFToken";
+axios.defaults.xsrfCookieName = "csrftoken";
+axios.defaults.headers.common['X-CSRFToken'] = csrfToken;
+axios.defaults.withCredentials = true;
+
+const { createApp } = Vue;
+createApp({
+  delimiters: ['[[', ']]'],
+  data() {
+    return {
+      services: [],
+      categories: [],
+      form: { id: null, name: '', description: '', price: '', duration_minutes: null, category: null },
+      modalTitle: '',
+      status: 'add',
+      message: '',
+      searchQuery: '',
+      currentPage: 1,
+      totalPages: 1,
+      perPage: 5,
+      csrfToken: csrfToken
+    };
+  },
+  mounted() {
+    this.fetchCategories();
+    this.fetchServices();
+  },
+  methods: {
+    fetchServices() {
+      axios.get('/api/services/', {
+        params: {
+        search: this.searchQuery,
+        page: this.currentPage
+        }
+    })
+    .then(res => {
+        const rawServices = res.data.results;
+        const activeCategoryIds = this.categories.map(c => c.id);
+        this.services = rawServices.filter(s => activeCategoryIds.includes(s.category));
+        this.totalPages = Math.ceil(res.data.count / this.perPage);
+    })
+    .catch(error => {
+        console.error("Error fetching services:", error);
+    });
+    },
+    fetchCategories() {
+        axios.get('/api/categories/')
+            .then(res => {
+            const all = res.data.results || res.data;
+            this.categories = all.filter(cat => cat.is_active); // ✅ only active
+            })
+            .catch(error => {
+            console.error("Error fetching categories:", error);
+            });
+    },
+    getCategoryName(category) {
+      const id = typeof category === 'object' ? category.id : category;
+      const found = this.categories.find(c => c.id == id);
+      return found ? found.name : 'Unknown';
+    },
+    openModal(status, service = null) {
+      this.status = status;
+      this.modalTitle = status === 'add' ? 'Add Service' : 'Edit Service';
+      this.form = status === 'add'
+        ? { id: null, name: '', description: '', price: '', duration_minutes: null, category: null }
+        : { ...service };
+      new bootstrap.Modal(document.getElementById('serviceModal')).show();
+    },
+    saveService() {
+      const url = this.status === 'add' ? '/api/services/' : `/api/services/${this.form.id}/`;
+      const method = this.status === 'add' ? 'post' : 'put';
+
+      axios({
+        method: method,
+        url: url,
+        data: this.form,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': this.csrfToken
+        }
+      })
+      .then(() => {
+        this.fetchServices();
+        bootstrap.Modal.getInstance(document.getElementById('serviceModal')).hide();
+        this.message = this.status === 'add' ? 'Service created!' : 'Service updated!';
+        setTimeout(() => this.message = '', 3000);
+      })
+      .catch(error => {
+        console.error("Error saving service:", error);
+      });
+    },
+    deleteService(id) {
+      Swal.fire({
+        title: 'Are you sure?',
+        text: 'This service will be deleted permanently.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+      }).then(result => {
+        if (result.isConfirmed) {
+          axios.delete(`/api/services/${id}/`, {
+            headers: {
+              'X-CSRFToken': this.csrfToken
+            }
+          })
+          .then(() => {
+            this.fetchServices();
+            this.message = 'Service deleted successfully!';
+            setTimeout(() => this.message = '', 3000);
+          })
+          .catch(error => {
+            console.error("Error deleting service:", error);
+          });
+        }
+      });
+    },
+    changePage(page) {
+      if (page < 1 || page > this.totalPages) return;
+      this.currentPage = page;
+      this.fetchServices();
+    }
+  }
+}).mount('#serviceApp');
+</script>
+{% endblock %}

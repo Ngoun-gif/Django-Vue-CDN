@@ -1,0 +1,419 @@
+{% extends "backend/layouts/master.html" %}
+{% load static %}
+
+{% block content %}
+<div id="customerApp" class="container-fluid px-4 py-3" style="position: relative;">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
+            <li class="breadcrumb-item active">Customers</li>
+        </ol>
+    </nav>
+
+    <div v-if="message" class="alert alert-success" role="alert">
+        [[ message ]]
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="w-50">
+            <div class="input-group">
+                <input 
+                    v-model="searchQuery" 
+                    @input="debouncedFetch" 
+                    type="text" 
+                    class="form-control" 
+                    placeholder="Search customer..."
+                    aria-label="Search customer"
+                >
+            </div>
+        </div>
+        
+        {% comment %} <button class="btn btn-primary" @click="openModal('add')">
+            <i class="fas fa-plus me-1"></i> Add Customer
+        </button>  {% endcomment %}
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover text-center">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Username</th>
+                    <th>Phone</th>
+                    <th>Address</th>
+                    <th>Date of Birth</th>
+                    <th>Gender</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="(customer, index) in customers" :key="customer.id">
+                    <td>[[ index + 1 + (currentPage - 1) * perPage ]]</td>
+                    <td>[[ customer.customer_name || 'N/A' ]]</td>
+                    <td>[[ customer.phone || 'N/A' ]]</td>
+                    <td>[[ customer.address || 'N/A' ]]</td>
+                    <td>[[ formatDate(customer.date_of_birth) ]]</td>
+                    <td>[[ capitalize(customer.gender) || 'N/A' ]]</td>
+                    <td style="display: flex; gap: 0.5rem; justify-content: center;">
+                        <button class="btn btn-sm btn-warning" @click="openModal('edit', customer)" :disabled="isLoading">Edit</button>
+                        <button class="btn btn-sm btn-danger" @click="deleteCustomer(customer.id)" :disabled="isLoading">Delete</button>
+                    </td>
+                </tr>
+                <tr v-if="customers.length === 0 && !isLoading">
+                    <td colspan="7" class="text-muted">No customers found.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav v-if="totalPages > 1" aria-label="Customer pagination">
+        <ul class="pagination justify-content-end">
+            <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">Previous</a>
+            </li>
+            <li class="page-item" v-for="page in totalPages" :class="{ active: currentPage === page }" :key="page">
+                <a class="page-link" href="#" @click.prevent="changePage(page)">[[ page ]]</a>
+            </li>
+            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next</a>
+            </li>
+        </ul>
+    </nav>
+
+    <div v-if="isLoading" class="loading-overlay d-flex justify-content-center align-items-center">
+        <div class="spinner-border text-primary" role="status" aria-label="Loading..."></div>
+    </div>
+
+    <div class="modal fade" id="customerModal" tabindex="-1" aria-labelledby="customerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form @submit.prevent="saveCustomer" novalidate>
+                    <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="customerModalLabel">[[ modalTitle ]]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" :disabled="isLoading"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <label for="usernameInput" class="form-label">Username *</label>
+                            <input 
+                                id="usernameInput"
+                                v-model="form.user_data.username" 
+                                type="text" 
+                                class="form-control" 
+                                required
+                                :disabled="isLoading || status === 'edit'"
+                                aria-describedby="usernameError"
+                            >
+                            <div v-if="errors.user_data?.username" class="text-danger small" id="usernameError">
+                                [[ errors.user_data.username[0] ]]
+                            </div>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <label for="emailInput" class="form-label">Email</label>
+                            <input 
+                                id="emailInput"
+                                v-model="form.user_data.email" 
+                                type="email" 
+                                class="form-control" 
+                                :disabled="isLoading"
+                                aria-describedby="emailError"
+                            >
+                            <div v-if="errors.user_data?.email" class="text-danger small" id="emailError">
+                                [[ errors.user_data.email[0] ]]
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="phoneInput" class="form-label">Phone *</label>
+                            <input id="phoneInput" v-model="form.phone" type="text" class="form-control" required :disabled="isLoading" aria-describedby="phoneError">
+                            <div v-if="errors.phone" class="text-danger small" id="phoneError">[[ errors.phone[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="addressInput" class="form-label">Address *</label>
+                            <input id="addressInput" v-model="form.address" type="text" class="form-control" required :disabled="isLoading" aria-describedby="addressError">
+                            <div v-if="errors.address" class="text-danger small" id="addressError">[[ errors.address[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="dobInput" class="form-label">Date of Birth *</label>
+                            <input id="dobInput" v-model="form.date_of_birth" type="date" class="form-control" required :disabled="isLoading" aria-describedby="dobError">
+                            <div v-if="errors.date_of_birth" class="text-danger small" id="dobError">[[ errors.date_of_birth[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="genderSelect" class="form-label">Gender *</label>
+                            <select id="genderSelect" v-model="form.gender" class="form-control" required :disabled="isLoading" aria-describedby="genderError">
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <div v-if="errors.gender" class="text-danger small" id="genderError">[[ errors.gender[0] ]]</div>
+                        </div>
+
+                        <div class="mb-2" v-if="status === 'add'">
+                            <label for="roleSelect" class="form-label">Role</label>
+                            <select id="roleSelect" v-model="form.role_name" class="form-control" :disabled="isLoading" aria-describedby="roleError">
+                                <option value="customer">Customer</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <div v-if="errors.role_name" class="text-danger small" id="roleError">[[ errors.role_name[0] ]]</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success" :disabled="isLoading">
+                            <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            [[ status === 'add' ? 'Create' : 'Update' ]]
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" :disabled="isLoading">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.6);
+    z-index: 1055;
+}
+</style>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function getCSRFToken() {
+    const csrfCookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+    return csrfCookie ? csrfCookie.split('=')[1] : null;
+}
+
+const { createApp } = Vue;
+
+createApp({
+    delimiters: ['[[', ']]'],
+    data() {
+        return {
+            csrfToken: getCSRFToken(),
+            customers: [],
+            form: { 
+                id: null,
+                phone: '', 
+                address: '', 
+                date_of_birth: '', 
+                gender: 'male',
+                user_data: {
+                    username: '',
+                    email: ''
+                },
+                role_name: 'customer'
+            },
+            modalTitle: '',
+            status: 'add',
+            message: '',
+            searchQuery: '',
+            currentPage: 1,
+            totalPages: 1,
+            perPage: 10,
+            isLoading: false,
+            errors: {}
+        };
+    },
+    mounted() {
+        this.debouncedFetch = this.debounce(this.fetchCustomers, 300);
+        this.fetchCustomers();
+
+        const modalEl = document.getElementById('customerModal');
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            this.errors = {};
+            if (this.status === 'add') {
+                this.resetForm();
+            }
+        });
+    },
+    methods: {
+        debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        },
+        async fetchCustomers() {
+            this.isLoading = true;
+            try {
+                const response = await axios.get('/api/customers/', {
+                    params: {
+                        search: this.searchQuery,
+                        page: this.currentPage,
+                        page_size: this.perPage
+                    },
+                    headers: {
+                        'X-CSRFToken': this.csrfToken
+                    }
+                });
+                
+                this.customers = response.data.results || response.data;
+                this.totalPages = Math.ceil((response.data.count || this.customers.length) / this.perPage);
+            } catch (error) {
+                console.error("Error fetching customers:", error);
+                this.showError("Failed to load customers");
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        openModal(status, customer = null) {
+            this.status = status;
+            this.modalTitle = status === 'add' ? 'Add Customer' : 'Edit Customer';
+            this.errors = {};
+            
+            if (status === 'add') {
+                this.resetForm();
+            } else {
+                this.form = {
+                    id: customer.id,
+                    phone: customer.phone || '',
+                    address: customer.address || '',
+                    date_of_birth: customer.date_of_birth || '',
+                    gender: customer.gender || 'male',
+                    user_data: {
+                        username: customer.customer_name || '',
+                        email: ''
+                    }
+                };
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('customerModal'));
+            modal.show();
+        },
+        resetForm() {
+            this.form = { 
+                id: null,
+                phone: '', 
+                address: '', 
+                date_of_birth: '', 
+                gender: 'male',
+                user_data: {
+                    username: '',
+                    email: ''
+                },
+                role_name: 'customer'
+            };
+        },
+        async saveCustomer() {
+            this.isLoading = true;
+            this.errors = {};
+            
+            try {
+                const url = this.status === 'add' 
+                    ? '/api/customers/' 
+                    : `/api/customers/${this.form.id}/`;
+                    
+                const method = this.status === 'add' ? 'post' : 'put';
+                
+                const payload = {
+                    phone: this.form.phone,
+                    address: this.form.address,
+                    date_of_birth: this.form.date_of_birth,
+                    gender: this.form.gender,
+                    user_data: {
+                        username: this.form.user_data.username,
+                        email: this.form.user_data.email
+                    }
+                };
+
+                if (this.status === 'add') {
+                    payload.role_name = this.form.role_name;
+                }
+                
+                await axios({
+                    method,
+                    url,
+                    data: payload,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken
+                    }
+                });
+                
+                this.fetchCustomers();
+                bootstrap.Modal.getInstance(document.getElementById('customerModal')).hide();
+                this.showSuccess(this.status === 'add' 
+                    ? 'Customer created successfully!' 
+                    : 'Customer updated successfully!');
+            } catch (error) {
+                if (error.response?.status === 400) {
+                    this.errors = error.response.data;
+                } else {
+                    console.error("Error saving customer:", error);
+                    this.showError("Failed to save customer");
+                }
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        deleteCustomer(id) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Delete',
+                cancelButtonText: 'Cancel'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    try {
+                        await axios.delete(`/api/customers/${id}/`, {
+                            headers: {
+                                'X-CSRFToken': this.csrfToken
+                            }
+                        });
+                        this.fetchCustomers();
+                        this.showSuccess('Customer deleted successfully!');
+                    } catch (error) {
+                        console.error("Error deleting customer:", error);
+                        this.showError("Failed to delete customer");
+                    }
+                }
+            });
+        },
+        changePage(page) {
+            if (page < 1 || page > this.totalPages) return;
+            this.currentPage = page;
+            this.fetchCustomers();
+        },
+        showSuccess(message) {
+            this.message = message;
+            setTimeout(() => this.message = '', 3000);
+        },
+        showError(message) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message
+            });
+        },
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+        capitalize(str) {
+            if (!str) return '';
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+    }
+}).mount('#customerApp');
+</script>
+{% endblock %}

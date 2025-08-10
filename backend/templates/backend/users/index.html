@@ -1,767 +1,541 @@
-{% extends 'backend/layouts/master.html' %}
-{% block title %}User Management SPA{% endblock %}
-{% block content %}
+{% extends "backend/layouts/master.html" %}
 {% load static %}
-{% load user_roles %}
 
-<div class="container-fluid ps-4 pe-4">
-    <nav aria-label="breadcrumb" class="main-breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'role_dashboard' role='admins' %}">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="#">User</a></li>
-        </ol>
-    </nav>
-</div>
+{% block content %}
+<div id="userApp" class="container-fluid py-4">
+    <div v-if="errorMessage" class="alert alert-danger mb-3">
+        [[ errorMessage ]]
+        <button type="button" class="btn-close float-end" @click="errorMessage = ''"></button>
+    </div>
 
-{% verbatim %}
-<style>
-    .thead-dark-green {
-        background-color: #001980;
-        color: white;
-    }
-    .btn-icon-split .icon {
-        padding: 0.5rem;
-        background: rgba(0, 0, 0, 0.15);
-        display: inline-block;
-    }
-    .btn-icon-split .text {
-        padding: 0.5rem 1rem;
-    }
-    .custom-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-        opacity: 0;
-        transition: opacity 0.1s ease-in-out;
-        pointer-events: none;
-        visibility: hidden;
-    }
-    .custom-overlay.active {
-        opacity: 1;
-        pointer-events: all;
-        visibility: visible;
-    }
-    .pulse-loader {
-        display: flex;
-        gap: 10px;
-    }
-    .pulse-loader div {
-        width: 12px;
-        height: 12px;
-        background-color: #001980;
-        border-radius: 50%;
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-    .pulse-loader div:nth-child(1) {
-        animation-delay: 0.2s;
-    }
-    .pulse-loader div:nth-child(2) {
-        animation-delay: 0.2s;
-    }
-    .pulse-loader div:nth-child(3) {
-        animation-delay: 0.2s;
-    }
-    @keyframes pulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.5); }
-    }
-    .pagination {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 1rem;
-    }
-    .pagination .page-buttons {
-        display: flex;
-        gap: 0.5rem;
-    }
-    .pagination button {
-        padding: 0.5rem 1rem;
-        border: 1px solid #1e3a8a;
-        background: white;
-        color: #1e3a8a;
-        cursor: pointer;
-        border-radius: 4px;
-    }
-    .pagination button.active {
-        background: #092e67;
-        color: white;
-    }
-    .pagination button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    .entries-select {
-        padding: 0.5rem;
-        border-radius: 1px;
-        border: 0px solid #ccc;
-    }
-    .search-container {
-        margin-bottom: 1rem;
-    }
-    .search-container input {
-        padding: 0.5rem;
-        width: 100%;
-        max-width: 300px;
-        border-radius: 4px;
-        border: 1px solid #ccc;
-    }
-    th {
-        cursor: pointer;
-        position: relative;
-    }
-    th:after {
-        content: '▲▼';
-        font-size: 0.7em;
-        margin-left: 5px;
-        opacity: 0.3;
-    }
-    th.asc:after {
-        content: '▲';
-        opacity: 1;
-    }
-    th.desc:after {
-        content: '▼';
-        opacity: 1;
-    }
-    .badge {
-        display: inline-block;
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75rem;
-        font-weight: 700;
-        line-height: 1;
-        text-align: center;
-        white-space: nowrap;
-        vertical-align: baseline;
-        border-radius: 0.25rem;
-    }
-    .badge-active {
-        background-color: #28a745;
-        color: white;
-    }
-    .badge-inactive {
-        background-color: #dc3545;
-        color: white;
-    }
-    .btn-edit {
-        background-color: #ffc107;
-        color: white;
-        border: none;
-        padding: 0.25rem 0.5rem;
-        margin-right: 0.25rem;
-    }
-    .btn-edit:hover {
-        background-color: #e0a800;
-    }
-    .btn-delete {
-        background-color: #dc3545;
-        color: white;
-        border: none;
-        padding: 0.25rem 0.5rem;
-    }
-    .btn-delete:hover {
-        background-color: #c82333;
-    }
-    @media (prefers-color-scheme: dark) {
-        .pulse-loader div {
-            background-color: #4a90e2;
-        }
-        .pagination button {
-            background: #2d3748;
-            color: #e2e8f0;
-            border-color: #e2e8f0;
-        }
-        .pagination button.active {
-            background: #1e3a8a;
-            color: white;
-        }
-    }
-</style>
+    <div class="d-flex justify-content-between mb-3">
+        <input 
+            type="text" 
+            v-model="searchQuery" 
+            @input="debouncedFetch" 
+            class="form-control w-50 me-2" 
+            placeholder="Search users..."
+            aria-label="Search users"
+        >
+        <button class="btn btn-primary" @click="openModal('add')" :disabled="isLoading">
+            <span v-if="isLoading" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            + Add User
+        </button>
+    </div>
 
-<div id="app" class="container-fluid ps-4 pe-4">
-
-    <div class="card shadow mb-4">
-        <div class="d-flex justify-content-between py-3 px-4">
-            <div>
-                <a href="{% url 'dashboard' %}" class="btn btn-secondary btn-icon-split">
-                    <span class="icon text-white-50">
-                        <i class="fa-solid fa-backward-step me-1"></i>
-                    </span>
-                    <span class="text">Back</span>
-                </a>
-            </div>
-            <div>
-                <button @click="openCreateModal" type="button" class="btn btn-primary btn-icon-split" :disabled="isLoading">
-                    <span class="icon text-white-50">
-                        <i class="fas fa-user-plus"></i>
-                    </span>
-                    <span class="text">Add User</span>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4>User Management</h4>
-                    <div class="search-container">
-                        <input v-model="searchQuery" placeholder="Search users..." @input="filterUsers">
-                    </div>
-                </div>
-                <div class="d-flex justify-content-start mb-2">
-                    <div>
-                        <label>Show </label>
-                        <select v-model="pageSize" class="entries-select" @change="updatePagination">
-                            <option v-for="size in [5, 10, 25, 50]" :key="size" :value="size">{{ size }}</option>
-                        </select>
-                        <span> entries</span>
-                    </div>
-                </div>
-                <div v-if="error" class="alert alert-danger">{{ error }}</div>
-                <table class="table table-hover table-bordered" width="100%" v-if="!isLoading">
-                    <thead class="thead-dark-green">
-                        <tr class="text-center">
-                            <th @click="sort('no')" :class="{ asc: sortKey === 'no' && sortOrder === 'asc', desc: sortKey === 'no' && sortOrder === 'desc' }">No</th>
-                            <th @click="sort('name')" :class="{ asc: sortKey === 'name' && sortOrder === 'asc', desc: sortKey === 'name' && sortOrder === 'desc' }">Name</th>
-                            <th @click="sort('email')" :class="{ asc: sortKey === 'email' && sortOrder === 'asc', desc: sortKey === 'email' && sortOrder === 'desc' }">Email</th>
-                            <th @click="sort('role')" :class="{ asc: sortKey === 'role' && sortOrder === 'asc', desc: sortKey === 'role' && sortOrder === 'desc' }">Role</th>
-                            <th @click="sort('status')" :class="{ asc: sortKey === 'status' && sortOrder === 'asc', desc: sortKey === 'status' && sortOrder === 'desc' }">Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="table-light">
-                        <tr v-for="(user, index) in paginatedUsers" :key="user.id">
-                            <td class="text-center">{{ getRowNumber(index) }}</td>
-                            <td>{{ user.name }}</td>
-                            <td>{{ user.email }}</td>
-                            <td class="text-center">{{ user.role }}</td>
-                            <td class="text-center">
-                                <span :class="user.status === 'Active' ? 'badge badge-active' : 'badge badge-inactive'">
-                                    {{ user.status }}
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <div class="d-flex justify-content-center">
-                                    <button class="btn-edit btn btn-sm mx-1" @click="openEditModal(user)" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn-delete btn btn-sm mx-1" @click="deleteUser(user.id)" title="Delete">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="paginatedUsers.length === 0">
-                            <td colspan="6" class="text-center">No users found</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="pagination" v-if="!isLoading && filteredUsers.length > 0">
-                    <span>Showing {{ (currentPage - 1) * pageSize + 1 }} to {{ Math.min(currentPage * pageSize, filteredUsers.length) }} of {{ filteredUsers.length }} users</span>
-                    <div class="page-buttons">
-                        <button :disabled="currentPage === 1" @click="currentPage--">Previous</button>
-                        <button v-for="page in totalPages" :key="page"
-                                :class="{ active: page === currentPage }"
-                                @click="currentPage = page"
-                                :disabled="page === currentPage">
-                            {{ page }}
+    <div class="table-responsive">
+        <table class="table table-bordered text-center">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="(user, index) in filteredUsers" :key="user?.id || index">
+                    <td>[[ index + 1 + (currentPage - 1) * perPage ]]</td>
+                    <td>[[ user?.username || 'N/A' ]]</td>
+                    <td>[[ user?.email || 'N/A' ]]</td>
+                    <td>[[ user?.role_name || '—' ]]</td>
+                    <td>
+                        <span v-if="user?.active" class="badge bg-success">Active</span>
+                        <span v-else class="badge bg-secondary">Inactive</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-warning me-1" @click="openModal('edit', user)" :disabled="!user || isLoading">
+                            Edit
                         </button>
-                        <button :disabled="currentPage === totalPages" @click="currentPage++">Next</button>
+                        <button class="btn btn-sm btn-danger" @click="confirmDelete(user?.id)" :disabled="!user || isLoading">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+                <tr v-if="filteredUsers.length === 0 && !isLoading">
+                    <td colspan="6" class="text-muted">No users found.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav v-if="totalPages > 1" aria-label="User pagination">
+        <ul class="pagination justify-content-end">
+            <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">Previous</a>
+            </li>
+            <li class="page-item" v-for="page in visiblePages" :key="page" :class="{ active: currentPage === page }">
+                <a class="page-link" href="#" @click.prevent="changePage(page)">[[ page ]]</a>
+            </li>
+            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next</a>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true" ref="userModal">
+        <div class="modal-dialog">
+            <form @submit.prevent="saveUser" novalidate>
+                <input type="hidden" :value="csrfToken" name="csrfmiddlewaretoken" />
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="userModalLabel">[[ modalTitle ]]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" :disabled="isLoading"></button>
                     </div>
-                </div>
-                <div v-else-if="!isLoading && filteredUsers.length === 0" class="pagination">
-                    Showing 0 to 0 of 0 users
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Enhanced Loading Overlay with Pulse Loader -->
-    <div v-if="isLoading" class="custom-overlay active">
-        <div class="pulse-loader">
-            <div></div>
-            <div></div>
-            <div></div>
-        </div>
-    </div>
-    <!-- Modal -->
-    <div class="modal fade" id="userModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true" ref="userModal">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="userModalLabel">{{ isEdit ? 'Edit User' : 'Create User' }}</h5>
-                    <button type="button" class="btn-close" @click="closeModal" aria-label="Close"></button>
-                </div>
-                <form @submit.prevent="submitForm">
                     <div class="modal-body">
-                        <div class="container">
-                            <div class="row">
-                                <div class="col-12">
-                                    <!-- Name -->
-                                    <div class="mb-3">
-                                        <label class="form-label">Name <span class="text-danger">*</span></label>
-                                        <input class="form-control"
-                                            :class="{ 'is-invalid': errors.name, 'is-valid': form.name && !errors.name }"
-                                            placeholder="Enter Name" v-model="form.name"
-                                            @blur="validateField('name', form.name)" required>
-                                        <div class="invalid-feedback" v-if="errors.name">
-                                            {{ errors.name }}
-                                        </div>
-                                    </div>
-                                    <!-- Email -->
-                                    <div class="mb-3">
-                                        <label class="form-label">Email <span class="text-danger">*</span></label>
-                                        <input type="email" class="form-control"
-                                            :class="{ 'is-invalid': errors.email, 'is-valid': form.email && !errors.email }"
-                                            placeholder="Enter Email" v-model="form.email"
-                                            @blur="validateField('email', form.email)" :disabled="isEdit"
-                                            required>
-                                        <div class="invalid-feedback" v-if="errors.email">
-                                            {{ errors.email }}
-                                        </div>
-                                    </div>
-                                    <!-- Password (only for create) -->
-                                    <div class="mb-3" v-if="!isEdit">
-                                        <label class="form-label" for="passwordInput">Password <span class="text-danger">*</span></label>
-                                        <input id="passwordInput" type="password" class="form-control"
-                                            :class="{ 'is-invalid': errors.password, 'is-valid': form.password && !errors.password }"
-                                            placeholder="Enter Password" v-model="form.password"
-                                            @blur="validateField('password', form.password)"
-                                            required aria-describedby="passwordError">
-                                        <div id="passwordError" class="invalid-feedback" v-if="errors.password">
-                                            {{ errors.password }}
-                                        </div>
-                                    </div>
-                                    <!-- Role -->
-                                    <div class="mb-3">
-                                        <label class="form-label">Role <span class="text-danger">*</span></label>
-                                        <select class="form-control"
-                                            :class="{ 'is-invalid': errors.role, 'is-valid': form.role && !errors.role }"
-                                            v-model="form.role" @change="validateField('role', form.role)">
-                                            <option :value="null">Select Role</option>
-                                            <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
-                                        </select>
-                                        <div class="invalid-feedback" v-if="errors.role">
-                                            {{ errors.role }}
-                                        </div>
-                                    </div>
-                                    <!-- Status -->
-                                    <div class="mb-3">
-                                        <label class="form-label">Status <span class="text-danger">*</span></label>
-                                        <select class="form-control"
-                                            :class="{ 'is-invalid': errors.status, 'is-valid': form.status && !errors.status }"
-                                            v-model="form.status" @change="validateField('status', form.status)">
-                                            <option :value="null">Select Status</option>
-                                            <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
-                                        </select>
-                                        <div class="invalid-feedback" v-if="errors.status">
-                                            {{ errors.status }}
-                                        </div>
-                                    </div>
-                                </div>
+                        <div class="mb-3">
+                            <label for="usernameInput" class="form-label">Username *</label>
+                            <input
+                                id="usernameInput"
+                                v-model="form.username"
+                                type="text"
+                                class="form-control"
+                                :class="{ 'is-invalid': errors.username }"
+                                required
+                                :disabled="isLoading || status === 'edit'"
+                            >
+                            <div v-if="errors.username" class="invalid-feedback">
+                                [[ errors.username[0] ]]
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="emailInput" class="form-label">Email *</label>
+                            <input
+                                id="emailInput"
+                                v-model="form.email"
+                                type="email"
+                                class="form-control"
+                                :class="{ 'is-invalid': errors.email }"
+                                required
+                                :disabled="isLoading"
+                            >
+                            <div v-if="errors.email" class="invalid-feedback">
+                                [[ errors.email[0] ]]
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="firstNameInput" class="form-label">First Name</label>
+                                <input
+                                    id="firstNameInput"
+                                    v-model="form.first_name"
+                                    type="text"
+                                    class="form-control"
+                                    :disabled="isLoading"
+                                >
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="lastNameInput" class="form-label">Last Name</label>
+                                <input
+                                    id="lastNameInput"
+                                    v-model="form.last_name"
+                                    type="text"
+                                    class="form-control"
+                                    :disabled="isLoading"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="passwordInput" class="form-label">
+                                <span v-if="status === 'add'">Password *</span>
+                                <span v-else>New Password (leave blank to keep)</span>
+                            </label>
+                            <input
+                                id="passwordInput"
+                                v-model="form.password"
+                                type="password"
+                                class="form-control"
+                                :class="{ 'is-invalid': errors.password }"
+                                :required="status === 'add'"
+                                :disabled="isLoading"
+                                autocomplete="new-password"
+                            >
+                            <div v-if="errors.password" class="invalid-feedback">
+                                [[ errors.password[0] ]]
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="activeCheckbox"
+                                v-model="form.is_active"
+                                :disabled="isLoading"
+                            >
+                            <label class="form-check-label" for="activeCheckbox">Active</label>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="roleSelect" class="form-label">Role *</label>
+                            <select
+                                id="roleSelect"
+                                class="form-control"
+                                :class="{ 'is-invalid': errors.role_id }"
+                                v-model="form.role_id"
+                                required
+                                :disabled="isLoading || roles.length === 0"
+                            >
+                                <option value="" disabled>Select Role</option>
+                                <option v-for="role in roles" :key="role.id" :value="role.id">
+                                    [[ role.name ]]
+                                </option>
+                            </select>
+                            <div v-if="errors.role_id" class="invalid-feedback">
+                                [[ errors.role_id[0] ]]
+                            </div>
+                            <div v-if="roles.length === 0" class="text-warning small mt-1">
+                                No roles available. Please check your roles API endpoint or add roles first.
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @click="resetForm">Clear</button>
-                        <button type="submit" class="btn" :class="isEdit ? 'btn-warning' : 'btn-primary'" :disabled="isFormInvalid">
-                            {{ isEdit ? 'Update' : 'Create' }}
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" :disabled="isLoading">Cancel</button>
+                        <button type="submit" class="btn btn-primary" :disabled="isLoading || roles.length === 0">
+                            <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            [[ status === 'add' ? 'Create' : 'Update' ]]
                         </button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div v-if="isLoading" class="loading-overlay d-flex justify-content-center align-items-center">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Loading...</span>
         </div>
     </div>
 </div>
 
-<!-- Dependencies -->
-<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+<style>
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255,255,255,0.6);
+  z-index: 1055;
+}
+</style>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    // CSRF Token Setup for Django
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
+function getCSRFToken() {
+    const cookie = document.cookie.split('; ').find(c => c.startsWith('csrftoken='));
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
+}
+
+const { createApp } = Vue;
+
+createApp({
+    delimiters: ['[[', ']]'],
+    data() {
+        return {
+            csrfToken: getCSRFToken(),
+            users: [],
+            filteredUsers: [],
+            roles: [],
+            form: {
+                id: null,
+                username: '',
+                email: '',
+                first_name: '',
+                last_name: '',
+                password: '',
+                is_active: true,
+                role_id: '' // Renamed from 'role' to 'role_id'
+            },
+            modalTitle: '',
+            status: 'add',
+            errors: {},
+            errorMessage: '',
+            searchQuery: '',
+            currentPage: 1,
+            totalPages: 1,
+            perPage: 10,
+            isLoading: false,
+            debounceTimeout: null,
+            maxVisiblePages: 5,
+            debouncedFetch: null
+        };
+    },
+    computed: {
+        visiblePages() {
+            const range = [];
+            const start = Math.max(1, this.currentPage - Math.floor(this.maxVisiblePages / 2));
+            const end = Math.min(this.totalPages, start + this.maxVisiblePages - 1);
+            
+            for (let i = start; i <= end; i++) {
+                range.push(i);
             }
+            
+            return range;
         }
-        console.log('CSRF Token:', cookieValue); // Debug CSRF token
-        return cookieValue;
-    }
-
-    // Set CSRF token for every request
-    axios.interceptors.request.use(config => {
-        const token = getCookie('csrftoken');
-        if (token) {
-            config.headers['X-CSRFToken'] = token;
-        } else {
-            console.error('CSRF token not found');
-        }
-        return config;
-    });
-
-    const { createApp, ref, computed, onMounted } = Vue;
-
-    createApp({
-    setup() {
-        const users = ref([]);
-        const filteredUsers = ref([]);
-        const roles = ['Admin', 'Staff', 'Customer'];
-        const statuses = ['Active', 'Inactive'];
-        const isEdit = ref(false);
-        const isLoading = ref(true);
-        const error = ref(null);
-        const searchQuery = ref('');
-        const currentPage = ref(1);
-        const pageSize = ref(5);
-        const sortKey = ref('');
-        const sortOrder = ref('asc');
-        const form = ref({
-            id: null,
-            name: null,
-            email: null,
-            password: null,
-            role: null,
-            status: null
-        });
-        const errors = ref({
-            name: null,
-            email: null,
-            password: null,
-            role: null,
-            status: null
-        });
-        const modalInstance = ref(null);
-
-        const isFormInvalid = computed(() => {
-            return Object.values(errors.value).some(error => error !== null) ||
-                !form.value.name ||
-                !form.value.email ||
-                (!isEdit.value && !form.value.password) ||
-                !form.value.role ||
-                !form.value.status;
-        });
-
-        const totalPages = computed(() => {
-            return Math.ceil(filteredUsers.value.length / pageSize.value);
-        });
-
-        const paginatedUsers = computed(() => {
-            let data = [...filteredUsers.value];
-            if (sortKey.value) {
-                data.sort((a, b) => {
-                    let aValue = a[sortKey.value];
-                    let bValue = b[sortKey.value];
-
-                    if (sortKey.value === 'no') {
-                        aValue = users.value.indexOf(a) + 1;
-                        bValue = users.value.indexOf(b) + 1;
-                    } else if (sortKey.value === 'status') {
-                        const statusOrder = { 'Active': 1, 'Inactive': 2 };
-                        aValue = statusOrder[aValue] || Infinity;
-                        bValue = statusOrder[bValue] || Infinity;
-                    } else {
-                        aValue = typeof aValue === 'string' ? aValue.toLowerCase() : aValue;
-                        bValue = typeof bValue === 'string' ? bValue.toLowerCase() : bValue;
-                    }
-
-                    if (aValue < bValue) return sortOrder.value === 'asc' ? -1 : 1;
-                    if (aValue > bValue) return sortOrder.value === 'asc' ? 1 : -1;
-                    return 0;
-                });
-            }
-            const start = (currentPage.value - 1) * pageSize.value;
-            const end = start + pageSize.value;
-            return data.slice(start, end);
-        });
-
-        const getRowNumber = (index) => {
-            return (currentPage.value - 1) * pageSize.value + index + 1;
-        };
-
-        const fetchUsers = async () => {
-            isLoading.value = true;
-            error.value = null;
+    },
+    mounted() {
+        this.debouncedFetch = this.debounce(this.fetchUsers, 500);
+        this.initApp();
+    },
+    methods: {
+        async initApp() {
+            this.isLoading = true;
             try {
-                const response = await axios.get('http://127.0.0.1:8001/api/users/');
-                setTimeout(() => {
-                    users.value = response.data.map(u => ({
-                        id: u.id,
-                        name: u.username,
-                        email: u.email,
-                        role: u.role,
-                        status: u.is_active ? 'Active' : 'Inactive'
-                    }));
-                    filteredUsers.value = [...users.value];
-                    if (users.value.length === 0) {
-                        error.value = 'No users found';
-                    }
-                    isLoading.value = false;
-                }, 750);
-            } catch (err) {
-                let errorMessage = 'Failed to fetch users. Please try again.';
-                if (err.response) {
-                    errorMessage += ` Server responded with status ${err.response.status}: ${err.response.statusText}`;
-                } else if (err.request) {
-                    errorMessage += ' No response received from server.';
-                } else {
-                    errorMessage += ` Error: ${err.message}`;
-                }
-                error.value = errorMessage;
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.value
-                });
-                isLoading.value = false;
-            }
-        };
-
-        setTimeout(() => {
-            isLoading.value = false;
-        }, 750);
-
-        const filterUsers = () => {
-            const query = searchQuery.value.toLowerCase();
-            filteredUsers.value = users.value.filter(user =>
-                user.name.toLowerCase().includes(query) ||
-                user.email.toLowerCase().includes(query) ||
-                user.role.toLowerCase().includes(query)
-            );
-            currentPage.value = 1;
-        };
-
-        const updatePagination = () => {
-            currentPage.value = 1;
-        };
-
-        const sort = (key) => {
-            if (sortKey.value === key) {
-                sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortKey.value = key;
-                sortOrder.value = 'asc';
-            }
-            currentPage.value = 1;
-        };
-
-        const openCreateModal = () => {
-            resetForm();
-            isEdit.value = false;
-            modalInstance.value.show();
-        };
-
-        const openEditModal = (user) => {
-            resetForm();
-            isEdit.value = true;
-            form.value = { ...user };
-            modalInstance.value.show();
-        };
-
-        const closeModal = () => {
-            modalInstance.value.hide();
-            resetForm();
-        };
-
-        const submitForm = async () => {
-            if (!validateForm()) return;
-            isLoading.value = true;
-            error.value = null;
-            try {
-                const payload = {
-                    username: form.value.name,
-                    email: form.value.email,
-                    role: form.value.role,
-                    is_active: form.value.status === 'Active'
-                };
-                if (!isEdit.value) {
-                    payload.password = form.value.password;
-                }
-                if (isEdit.value) {
-                    await axios.put(`http://127.0.0.1:8001/api/users/${form.value.id}/`, payload);
-                    Swal.fire({
-                        position: "top-end",
-                        icon: 'success',
-                        title: 'Success',
-                        text: 'User updated successfully!✅',
-                        showConfirmButton: false,
-                        timer: 1500
-                    });
-                } else {
-                    await axios.post('http://127.0.0.1:8001/api/users/', payload);
-                    Swal.fire({
-                        position: "top-end",
-                        icon: 'success',
-                        title: 'Success',
-                        text: 'User created successfully!✅',
-                        showConfirmButton: false,
-                        timer: 1500
-                    });
-                }
-                await fetchUsers();
-                closeModal();
-            } catch (err) {
-                let errorMessage = err.response?.data?.message || `Error ${isEdit.value ? 'updating' : 'creating'} user`;
-                if (err.response?.data?.errors) {
-                    errorMessage = Object.values(err.response.data.errors).join('<br>');
-                }
-                error.value = errorMessage;
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    html: errorMessage
-                });
+                await Promise.all([
+                    this.fetchRoles(),
+                    this.fetchUsers()
+                ]);
+            } catch (error) {
+                console.error('Initialization error:', error);
+                this.errorMessage = 'Failed to initialize application. Please refresh the page.';
             } finally {
-                isLoading.value = false;
+                this.isLoading = false;
             }
-        };
+        },
+        
+        getUserRoleDisplay(user) {
+            return user?.role_name || '—';
+        },
+        
+        debounce(func, delay) {
+            return (...args) => {
+                clearTimeout(this.debounceTimeout);
+                this.debounceTimeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        },
+        
+        async fetchRoles() {
+            this.isLoading = true;
+            try {
+                const res = await axios.get('/api/roles/');
+                
+                let rolesData = Array.isArray(res.data) ? res.data : 
+                               (res.data?.results || []);
+                
+                this.roles = rolesData
+                    .filter(role => role && (role.id || role._id))
+                    .map(role => ({
+                        id: role.id || role._id,
+                        name: role.name || 'Unnamed Role'
+                    }));
+                
+            } catch (error) {
+                console.error('Roles API error:', error);
+                this.roles = [];
+                this.errorMessage = 'Could not load roles from the server.';
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        
+        async fetchUsers() {
+            this.isLoading = true;
+            try {
+                const res = await axios.get('/api/users/', {
+                    params: {
+                        search: this.searchQuery,
+                        page: this.currentPage,
+                        page_size: this.perPage
+                    }
+                });
+                
+                const usersData = res.data?.results || res.data || [];
+                
+                this.users = usersData.map(user => ({
+                    ...user,
+                    is_active: user.active,
+                    // Find the role ID from our `roles` list to populate the form dropdown
+                    role_id: this.roles.find(r => r.name === user.role_name)?.id || '' 
+                }));
+                
+                this.filteredUsers = [...this.users];
+                this.totalPages = Math.ceil((res.data?.count || this.users.length) / this.perPage);
+                
+            } catch (error) {
+                console.error('Failed to fetch users:', error);
+                this.errorMessage = 'Failed to load users. Please try again.';
+                this.users = [];
+                this.filteredUsers = [];
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        
+        openModal(status, user = null) {
+            if (this.isLoading) return;
+            
+            this.status = status;
+            this.modalTitle = status === 'add' ? 'Add User' : 'Edit User';
+            this.errors = {};
+            
+            if (status === 'add') {
+                this.form = {
+                    id: null,
+                    username: '',
+                    email: '',
+                    first_name: '',
+                    last_name: '',
+                    password: '',
+                    is_active: true,
+                    role_id: this.roles.length > 0 ? this.roles[0].id : ''
+                };
+            } else if (user) {
+                this.form = {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    first_name: user.first_name,
+                    last_name: user.last_name,
+                    password: '',
+                    is_active: user.is_active,
+                    role_id: user.role_id 
+                };
+            }
+            
+            const modal = new bootstrap.Modal(this.$refs.userModal);
+            modal.show();
+        },
+        
+        async saveUser() {
+            if (this.isLoading) return;
+            
+            this.isLoading = true;
+            this.errors = {};
+            
+            try {
+                // Basic validation
+                if (!this.form.username.trim()) {
+                    throw { response: { data: { username: ['Username is required'] } } };
+                }
+                if (!this.form.email.trim()) {
+                    throw { response: { data: { email: ['Email is required'] } } };
+                }
+                if (!this.form.role_id) {
+                    throw { response: { data: { role_id: ['Role is required'] } } };
+                }
+                if (this.status === 'add' && !this.form.password.trim()) {
+                    throw { response: { data: { password: ['Password is required for new users'] } } };
+                }
 
-        const deleteUser = async (id) => {
-            const result = await Swal.fire({
+                const url = this.status === 'add' 
+                    ? '/api/users/' 
+                    : `/api/users/${this.form.id}/`;
+                
+                const method = this.status === 'add' ? 'post' : 'patch';
+                
+                const payload = {
+                    username: this.form.username.trim(),
+                    email: this.form.email.trim(),
+                    first_name: this.form.first_name.trim(),
+                    last_name: this.form.last_name.trim(),
+                    active: this.form.is_active, 
+                    role_id: this.form.role_id // Changed 'role' to 'role_id'
+                };
+                
+                if (this.form.password.trim()) {
+                    payload.password = this.form.password.trim();
+                }
+                
+                await axios({
+                    method,
+                    url,
+                    data: payload,
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                
+                await this.fetchUsers();
+                bootstrap.Modal.getInstance(this.$refs.userModal).hide();
+                
+                Swal.fire({
+                    title: 'Success',
+                    text: `User ${this.status === 'add' ? 'created' : 'updated'} successfully!`,
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                
+            } catch (error) {
+                console.error('Error saving user:', error);
+                
+                if (error.response?.status === 400) {
+                    this.errors = error.response.data;
+                } else {
+                    this.errorMessage = error.response?.data?.message || 
+                                     'Failed to save user. Please check your data.';
+                }
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        
+        confirmDelete(userId) {
+            if (!userId) {
+                this.errorMessage = 'Invalid user ID';
+                return;
+            }
+            
+            Swal.fire({
                 title: 'Are you sure?',
-                text: "You won't be able to revert this!⚠️",
+                text: "You won't be able to revert this!",
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
                 cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Yes, delete it!',
-                cancelButtonText: 'Cancel'
+                confirmButtonText: 'Yes, delete it!'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    await this.deleteUser(userId);
+                }
             });
-            if (!result.isConfirmed) return;
-
-            isLoading.value = true;
-            error.value = null;
+        },
+        
+        async deleteUser(userId) {
+            this.isLoading = true;
             try {
-                await axios.delete(`http://127.0.0.1:8001/api/users/${id}/`);
+                await axios.delete(`/api/users/${userId}/`, {
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                
+                await this.fetchUsers();
+                
                 Swal.fire({
-                    position: "top-end",
+                    title: 'Deleted!',
+                    text: 'User has been deleted.',
                     icon: 'success',
-                    title: 'Deleted!🛑',
-                    text: 'User deleted successfully!',
-                    showConfirmButton: false,
-                    timer: 1500
+                    timer: 2000,
+                    showConfirmButton: false
                 });
-                await fetchUsers();
-            } catch (err) {
-                error.value = err.response?.data?.message || 'Failed to delete user';
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.value
-                });
+            } catch (error) {
+                console.error('Failed to delete user:', error);
+                
+                let errorMsg = 'Failed to delete user.';
+                if (error.response?.status === 404) {
+                    errorMsg = 'User not found. It may have already been deleted.';
+                } else if (error.response?.data?.message) {
+                    errorMsg = error.response.data.message;
+                }
+                
+                this.errorMessage = errorMsg;
             } finally {
-                isLoading.value = false;
+                this.isLoading = false;
             }
-        };
-
-        const resetForm = () => {
-            form.value = {
-                id: null,
-                name: null,
-                email: null,
-                password: null,
-                role: null,
-                status: null
-            };
-            clearErrors();
-        };
-
-        const clearErrors = () => {
-            errors.value = {
-                name: null,
-                email: null,
-                password: null,
-                role: null,
-                status: null
-            };
-        };
-
-        const validateField = (fieldName, value) => {
-            errors.value[fieldName] = null;
-            switch (fieldName) {
-                case 'name':
-                    if (!value) errors.value.name = 'Name is required';
-                    else if (value.length < 3) errors.value.name = 'Name must be at least 3 characters';
-                    break;
-                case 'email':
-                    if (!value) errors.value.email = 'Email is required';
-                    else if (!/^\S+@\S+\.\S+$/.test(value)) errors.value.email = 'Invalid email format';
-                    break;
-                case 'password':
-                    if (!isEdit.value && !value) errors.value.password = 'Password is required';
-                    else if (!isEdit.value && value.length < 8) errors.value.password = 'Password must be at least 8 characters';
-                    break;
-                case 'role':
-                    if (!value) errors.value.role = 'Role is required';
-                    break;
-                case 'status':
-                    if (!value) errors.value.status = 'Status is required';
-                    break;
-            }
-        };
-
-        const validateForm = () => {
-            validateField('name', form.value.name);
-            validateField('email', form.value.email);
-            if (!isEdit.value) validateField('password', form.value.password);
-            validateField('role', form.value.role);
-            validateField('status', form.value.status);
-            return !Object.values(errors.value).some(error => error !== null);
-        };
-
-        onMounted(() => {
-            const modalElement = document.getElementById('userModal');
-            modalInstance.value = new bootstrap.Modal(modalElement);
-            fetchUsers();
-        });
-
-        return {
-            users,
-            filteredUsers,
-            form,
-            isEdit,
-            isLoading,
-            error,
-            roles,
-            statuses,
-            errors,
-            searchQuery,
-            currentPage,
-            pageSize,
-            totalPages,
-            paginatedUsers,
-            sortKey,
-            sortOrder,
-            openCreateModal,
-            openEditModal,
-            closeModal,
-            submitForm,
-            deleteUser,
-            resetForm,
-            filterUsers,
-            updatePagination,
-            sort,
-            isFormInvalid,
-            getRowNumber
-        };
+        },
+        
+        changePage(page) {
+            if (page < 1 || page > this.totalPages || this.isLoading) return;
+            this.currentPage = page;
+            this.fetchUsers();
+        }
     }
-}).mount('#app');
+}).mount('#userApp');
 </script>
-{% endverbatim %}
 {% endblock %}

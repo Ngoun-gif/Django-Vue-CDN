@@ -1,32 +1,249 @@
-{% extends 'backend/base.html' %}
+{% extends "backend/layouts/master.html" %}
+
 {% block content %}
-<div class="container-fluid">
-    <h1 class="h3 mb-4 text-gray-800">Category Management</h1>
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">All Categories</h6>
-            <a href="{{ current_role }}/categories/add/" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus"></i> Add Category
-            </a>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                    <thead>
-                        <tr>
-                            <th>Category Name</th>
-                            <th>Type</th>
-                            <th>Items Count</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Data will be populated via JavaScript or Django context -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+<div id="categoryApp" class="container-fluid px-4 py-3">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
+      <li class="breadcrumb-item active">Categories</li>
+    </ol>
+  </nav>
+
+  <!-- Alert -->
+  <div v-if="message" class="alert alert-success" role="alert">
+    [[ message ]]
+  </div>
+
+  <!-- Search and Add -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <!-- Search Input -->
+    <div class="w-50">
+      <div class="input-group">
+        <input 
+          v-model="searchQuery" 
+          @input="fetchCategories" 
+          type="text" 
+          class="form-control" 
+          placeholder="Search category..."
+        >
+      </div>
     </div>
+    
+    <!-- Add Category Button -->
+    <button class="btn btn-primary" @click="openModal('add')">
+      <i class="fas fa-plus me-1"></i> Add Category
+    </button>
+  </div>
+
+  <!-- Category Table -->
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover text-center">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Status</th>
+          <th>Created At</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(category, index) in categories" :key="category.id">
+          <td>[[ index + 1 ]]</td>
+          <td>[[ category.name ]]</td>
+          <td>[[ category.description || '—' ]]</td>
+          <td>
+            <span v-if="category.is_active" class="badge bg-success">Active</span>
+            <span v-else class="badge bg-danger">Inactive</span>
+          </td>
+          <td>[[ new Date(category.created_at).toLocaleDateString() ]]</td>
+          <td style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-sm btn-warning" @click="openModal('edit', category)">Edit</button>
+            <button class="btn btn-sm btn-danger" @click="deleteCategory(category.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <nav v-if="totalPages > 1">
+    <ul class="pagination justify-content-end">
+      <li class="page-item" :class="{ disabled: currentPage === 1 }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">Previous</a>
+      </li>
+      <li class="page-item" v-for="page in totalPages" :class="{ active: currentPage === page }" :key="page">
+        <a class="page-link" href="#" @click.prevent="changePage(page)">[[ page ]]</a>
+      </li>
+      <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Modal -->
+  <div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form @submit.prevent="saveCategory">
+          <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken">
+          <div class="modal-header">
+            <h5 class="modal-title">[[ modalTitle ]]</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label>Name</label>
+              <input v-model="form.name" type="text" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label>Description</label>
+              <textarea v-model="form.description" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="mb-2 form-check">
+              <input v-model="form.is_active" type="checkbox" class="form-check-input" id="isActive">
+              <label class="form-check-label" for="isActive">Active</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-success">Save</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- Vue & Axios -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      cookie = cookie.trim();
+      if (cookie.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+const csrfToken = getCookie('csrftoken');
+
+axios.defaults.xsrfHeaderName = "X-CSRFToken";
+axios.defaults.xsrfCookieName = "csrftoken";
+axios.defaults.headers.common['X-CSRFToken'] = csrfToken;
+axios.defaults.withCredentials = true;
+
+const { createApp } = Vue;
+createApp({
+  delimiters: ['[[', ']]'],
+  data() {
+    return {
+      categories: [],
+      form: { id: null, name: '', description: '', is_active: true },
+      modalTitle: '',
+      status: 'add',
+      message: '',
+      searchQuery: '',
+      currentPage: 1,
+      totalPages: 1,
+      perPage: 5,
+      csrfToken: csrfToken
+    };
+  },
+  mounted() {
+    this.fetchCategories();
+  },
+  methods: {
+    fetchCategories() {
+      axios.get('/api/categories/', {
+        params: {
+          search: this.searchQuery,
+          page: this.currentPage
+        }
+      })
+      .then(res => {
+        this.categories = res.data.results;
+        this.totalPages = Math.ceil(res.data.count / this.perPage);
+      })
+      .catch(error => {
+        console.error("Error fetching categories:", error);
+      });
+    },
+    openModal(status, category = null) {
+      this.status = status;
+      this.modalTitle = status === 'add' ? 'Add Category' : 'Edit Category';
+      this.form = status === 'add'
+        ? { id: null, name: '', description: '', is_active: true }
+        : { ...category };
+      new bootstrap.Modal(document.getElementById('categoryModal')).show();
+    },
+    saveCategory() {
+      const url = this.status === 'add' ? '/api/categories/' : `/api/categories/${this.form.id}/`;
+      const method = this.status === 'add' ? 'post' : 'put';
+
+      axios({
+        method: method,
+        url: url,
+        data: this.form,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': this.csrfToken
+        }
+      })
+      .then(() => {
+        this.fetchCategories();
+        bootstrap.Modal.getInstance(document.getElementById('categoryModal')).hide();
+        this.message = this.status === 'add' ? 'Category created!' : 'Category updated!';
+        setTimeout(() => this.message = '', 3000);
+      })
+      .catch(error => {
+        console.error("Error saving category:", error);
+      });
+    },
+    deleteCategory(id) {
+      Swal.fire({
+        title: 'Are you sure?',
+        text: 'This category will be deleted permanently.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+      }).then(result => {
+        if (result.isConfirmed) {
+          axios.delete(`/api/categories/${id}/`, {
+            headers: {
+              'X-CSRFToken': this.csrfToken
+            }
+          })
+          .then(() => {
+            this.fetchCategories();
+            this.message = 'Category deleted successfully!';
+            setTimeout(() => this.message = '', 3000);
+          })
+          .catch(error => {
+            console.error("Error deleting category:", error);
+          });
+        }
+      });
+    },
+    changePage(page) {
+      if (page < 1 || page > this.totalPages) return;
+      this.currentPage = page;
+      this.fetchCategories();
+    }
+  }
+}).mount('#categoryApp');
+</script>
 {% endblock %}

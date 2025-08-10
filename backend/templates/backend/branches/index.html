@@ -1,211 +1,265 @@
 {% extends "backend/layouts/master.html" %}
 
 {% block content %}
-<div id="branchApp" class="container-fluid px-4">
-  <h1 class="h3 mb-4 text-gray-800">Branch Management</h1>
+<div id="branchApp" class="container-fluid px-4 py-3">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
+      <li class="breadcrumb-item active">Branches</li>
+    </ol>
+  </nav>
 
-  <!-- CSRF Token -->
-  <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
-
-  <!-- Create Button -->
-  <div class="d-flex justify-content-end mb-3">
-    <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#branchModal" @click="resetForm">
-      <i class="fas fa-plus fa-sm text-white-50"></i> Add Branch
-    </button>
+  <!-- Alert -->
+  <div v-if="message" class="alert alert-success" role="alert">
+    [[ message ]]
   </div>
 
-  <!-- Branch List -->
-  <div class="card shadow mb-4">
-    <div class="card-header py-3 bg-primary text-white">
-      <h6 class="m-0 font-weight-bold">Branch List</h6>
-    </div>
-    <div class="card-body">
-      <div class="table-responsive">
-        <table class="table table-bordered table-hover text-center">
-          <thead class="bg-light">
-            <tr>
-              <th>#</th>
-              <th>Name</th>
-              <th>Address</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(branch, index) in branches" :key="branch.id">
-              <td>[[ index + 1 ]]</td>
-              <td>[[ branch.name ]]</td>
-              <td>[[ branch.address ]]</td>
-              <td>[[ branch.phone ]]</td>
-              <td>[[ branch.email ]]</td>
-              <td>
-                <button class="btn btn-sm btn-warning me-1" @click="editBranch(branch)">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-danger" @click="confirmDelete(branch)">
-                  <i class="fas fa-trash-alt"></i>
-                </button>
-              </td>
-            </tr>
-            <tr v-if="branches.length === 0">
-              <td colspan="6" class="text-center">No branches found</td>
-            </tr>
-          </tbody>
-        </table>
+  <!-- Search and Add -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <!-- Search Input (Left) -->
+    <div class="w-50">
+      <div class="input-group">
+        <input 
+          v-model="searchQuery" 
+          @input="fetchBranches" 
+          type="text" 
+          class="form-control" 
+          placeholder="Search branch..."
+        >
       </div>
     </div>
+  
+  <!-- Add Branch Button (Right) -->
+  <button class="btn btn-primary" @click="openModal('add')">
+    <i class="fas fa-plus me-1"></i> Add Branch
+  </button>
+</div>
+  
+
+
+  <!-- Branch Table -->
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover text-center">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Address</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(branch, index) in branches" :key="branch.id">
+          <td>[[ index + 1 ]]</td>
+          <td>[[ branch.name ]]</td>
+          <td>[[ branch.address ]]</td>
+          <td>[[ branch.phone ]]</td>
+          <td>[[ branch.email ]]</td>
+          <td style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-sm btn-warning" @click="openModal('edit', branch)">Edit</button>
+            <button class="btn btn-sm btn-danger" @click="deleteBranch(branch.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
-  <!-- Branch Form Modal -->
-  <div class="modal fade" id="branchModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content shadow">
-        <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title">[[ editMode ? 'Edit Branch' : 'Add New Branch' ]]</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div v-if="formError" class="alert alert-danger">[[ formError ]]</div>
+  <!-- Pagination -->
+  <nav v-if="totalPages > 1">
+    <ul class="pagination justify-content-end">
+      <li class="page-item" :class="{ disabled: currentPage === 1 }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">Previous</a>
+      </li>
+      <li class="page-item" v-for="page in totalPages" :class="{ active: currentPage === page }" :key="page">
+        <a class="page-link" href="#" @click.prevent="changePage(page)">[[ page ]]</a>
+      </li>
+      <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next</a>
+      </li>
+    </ul>
+  </nav>
 
-          <div class="mb-3">
-            <label class="form-label">Branch Name</label>
-            <input v-model="form.name" class="form-control" required>
+  <!-- Modal -->
+  <div class="modal fade" id="branchModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form @submit.prevent="saveBranch">
+          <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken">
+          <div class="modal-header">
+            <h5 class="modal-title">[[ modalTitle ]]</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Address</label>
-            <input v-model="form.address" class="form-control" required>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label>Name</label>
+              <input v-model="form.name" type="text" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label>Address</label>
+              <input v-model="form.address" type="text" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label>Phone</label>
+              <input v-model="form.phone" type="text" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label>Email</label>
+              <input v-model="form.email" type="email" class="form-control" required>
+            </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Phone</label>
-            <input v-model="form.phone" class="form-control">
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-success">Save</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input v-model="form.email" type="email" class="form-control">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-primary" @click="saveBranch">
-            [[ editMode ? 'Update' : 'Save' ]]
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   </div>
 </div>
 
-<!-- JS/CSS Includes -->
-<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+<!-- Vue & Axios -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-const { createApp } = Vue;
+// Get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      cookie = cookie.trim();
+      if (cookie.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
 
+const csrfToken = getCookie('csrftoken');
+
+// Configure Axios
+axios.defaults.xsrfHeaderName = "X-CSRFToken";
+axios.defaults.xsrfCookieName = "csrftoken";
+axios.defaults.headers.common['X-CSRFToken'] = csrfToken;
+axios.defaults.withCredentials = true;
+
+const { createApp } = Vue;
 createApp({
   delimiters: ['[[', ']]'],
   data() {
     return {
       branches: [],
-      form: {
-        id: null,
-        name: '',
-        address: '',
-        phone: '',
-        email: ''
-      },
-      editMode: false,
-      formError: null,
-      apiUrl: "http://127.0.0.1:8005/api/branches/",
-      selectedBranch: null
+      form: { id: null, name: '', address: '', phone: '', email: '' },
+      modalTitle: '',
+      status: 'add',
+      message: '',
+      searchQuery: '',
+      currentPage: 1,
+      totalPages: 1,
+      perPage: 5,
+      csrfToken: csrfToken
     };
   },
+  mounted() {
+    this.fetchBranches();
+  },
   methods: {
-    async getBranches() {
-      try {
-        const response = await axios.get(this.apiUrl);
-        this.branches = response.data.results;
-      } catch (error) {
-        console.error("Error loading branches:", error);
-      }
-    },
-    async saveBranch() {
-      this.formError = null;
-      const csrfToken = document.getElementById('csrf-token').value;
-      const config = { headers: { 'X-CSRFToken': csrfToken } };
-
-      try {
-        if (this.editMode) {
-          await axios.put(`${this.apiUrl}${this.form.id}/`, this.form, config);
-          Swal.fire('Updated!', 'Branch updated successfully.', 'success');
-        } else {
-          await axios.post(this.apiUrl, this.form, config);
-          Swal.fire('Saved!', 'Branch added successfully.', 'success');
+    fetchBranches() {
+      axios.get('/api/branches/', {
+        params: {
+          search: this.searchQuery,
+          page: this.currentPage
         }
-
-        bootstrap.Modal.getInstance(document.getElementById('branchModal')).hide();
-        this.getBranches();
-        this.resetForm();
-      } catch (error) {
-        this.handleFormError(error);
-      }
+      })
+      .then(res => {
+        this.branches = res.data.results;
+        this.totalPages = Math.ceil(res.data.count / this.perPage);
+      })
+      .catch(error => {
+        console.error("Error fetching branches:", error);
+      });
     },
-    handleFormError(error) {
-      if (error.response && error.response.data) {
-        this.formError = Object.values(error.response.data).flat().join(' ');
-      } else {
-        this.formError = "An error occurred. Please try again.";
-      }
-    },
-    editBranch(branch) {
-      this.form = { ...branch };
-      this.editMode = true;
+    openModal(status, branch = null) {
+      this.status = status;
+      this.modalTitle = status === 'add' ? 'Add Branch' : 'Edit Branch';
+      this.form = status === 'add'
+        ? { id: null, name: '', address: '', phone: '', email: '' }
+        : { ...branch };
       new bootstrap.Modal(document.getElementById('branchModal')).show();
     },
-    confirmDelete(branch) {
-      this.selectedBranch = branch;
+    saveBranch() {
+      const url = this.status === 'add' ? '/api/branches/' : `/api/branches/${this.form.id}/`;
+      const method = this.status === 'add' ? 'post' : 'put';
+      
+      // Include CSRF token in form data
+      const formData = new FormData();
+      formData.append('csrfmiddlewaretoken', this.csrfToken);
+      formData.append('name', this.form.name);
+      formData.append('address', this.form.address);
+      formData.append('phone', this.form.phone);
+      formData.append('email', this.form.email);
+      
+      if (this.status === 'edit') {
+        formData.append('id', this.form.id);
+      }
+
+      axios({
+        method: method,
+        url: url,
+        data: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'X-CSRFToken': this.csrfToken
+        }
+      })
+      .then(() => {
+        this.fetchBranches();
+        bootstrap.Modal.getInstance(document.getElementById('branchModal')).hide();
+        this.message = this.status === 'add' ? 'Branch created!' : 'Branch updated!';
+        setTimeout(() => this.message = '', 3000);
+      })
+      .catch(error => {
+        console.error("Error saving branch:", error);
+      });
+    },
+    deleteBranch(id) {
       Swal.fire({
         title: 'Are you sure?',
-        text: "You won't be able to revert this!",
+        text: 'This branch will be deleted permanently.',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, delete it!'
-      }).then((result) => {
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+      }).then(result => {
         if (result.isConfirmed) {
-          this.deleteBranch();
+          axios.delete(`/api/branches/${id}/`, {
+            headers: {
+              'X-CSRFToken': this.csrfToken
+            }
+          })
+          .then(() => {
+            this.fetchBranches();
+            this.message = 'Branch deleted successfully!';
+            setTimeout(() => this.message = '', 3000);
+          })
+          .catch(error => {
+            console.error("Error deleting branch:", error);
+          });
         }
       });
     },
-    async deleteBranch() {
-      const csrfToken = document.getElementById('csrf-token').value;
-      const config = { headers: { 'X-CSRFToken': csrfToken } };
-
-      try {
-        await axios.delete(`${this.apiUrl}${this.selectedBranch.id}/`, config);
-        Swal.fire('Deleted!', 'Branch has been deleted.', 'success');
-        this.getBranches();
-      } catch (error) {
-        Swal.fire('Error!', 'Failed to delete branch.', 'error');
-      }
-    },
-    resetForm() {
-      this.form = {
-        id: null,
-        name: '',
-        address: '',
-        phone: '',
-        email: ''
-      };
-      this.editMode = false;
-      this.formError = null;
+    changePage(page) {
+      if (page < 1 || page > this.totalPages) return;
+      this.currentPage = page;
+      this.fetchBranches();
     }
-  },
-  mounted() {
-    this.getBranches();
   }
 }).mount('#branchApp');
 </script>

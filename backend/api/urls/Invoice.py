@@ -1,7 +1,8 @@
-from rest_framework.routers import DefaultRouter
-from backend.api.views.Invoice import InvoiceSerializer
-
-router = DefaultRouter()
-router.register(r'Invoices', InvoiceSerializer)  # 👈 This is what registers /api/users/
-
-urlpatterns = router.urls
+# # backend/api/urls/Invoice.py
+# from rest_framework.routers import DefaultRouter
+# from backend.api.views.Invoice import InvoiceViewSet
+#
+# router = DefaultRouter()
+# router.register(r'invoices', InvoiceViewSet)
+#
+# urlpatterns = router.urls

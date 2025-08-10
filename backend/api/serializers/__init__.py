@@ -10,10 +10,6 @@ class BookingSerializer:
     pass
 
 
-class InvoiceSerializer:
-    pass
-
-
 class BranchSerializer:
     pass
 
