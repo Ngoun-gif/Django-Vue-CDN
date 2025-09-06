@@ -9,6 +9,8 @@ from backend.api.views.Service import ServiceViewSet
 # from backend.api.views.Invoice import InvoiceViewSet
 from backend.api.views.Role import RoleViewSet
 from backend.api.views.UserRole import UserRoleViewSet
+from backend.api.views.subject import SubjectViewSet
+from backend.api.views.teacher import TeacherViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -20,5 +22,8 @@ router.register(r'services', ServiceViewSet)
 # router.register(r'invoices', InvoiceViewSet)
 router.register(r'roles', RoleViewSet)
 router.register(r'userroles', UserRoleViewSet)
+
+router.register(r'subjects', SubjectViewSet)
+router.register(r'teachers', TeacherViewSet)
 
 urlpatterns = router.urls

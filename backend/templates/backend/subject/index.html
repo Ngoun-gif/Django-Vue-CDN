@@ -1,0 +1,232 @@
+{% extends "backend/layouts/master.html" %}
+
+{% block content %}
+<div id="subjectApp" class="container-fluid px-4 py-3">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
+      <li class="breadcrumb-item active">Subjects</li>
+    </ol>
+  </nav>
+
+  <!-- Alert -->
+  <div v-if="message" class="alert alert-success" role="alert">
+    [[ message ]]
+  </div>
+
+  <!-- Search and Add -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <!-- Search Input -->
+    <div class="w-50">
+      <div class="input-group">
+        <input 
+          v-model="searchQuery" 
+          @input="fetchSubjects" 
+          type="text" 
+          class="form-control" 
+          placeholder="Search subject..."
+        >
+      </div>
+    </div>
+    
+    <!-- Add Subject Button -->
+    <button class="btn btn-primary" @click="openModal('add')">
+      <i class="fas fa-plus me-1"></i> Add Subject
+    </button>
+  </div>
+
+  <!-- Subject Table -->
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover text-center">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(subject, index) in subjects" :key="subject.id">
+          <td>[[ index + 1 ]]</td>
+          <td>[[ subject.name ]]</td>
+          <td style="display: flex; gap: 0.5rem; justify-content: center;">
+            <button class="btn btn-sm btn-warning" @click="openModal('edit', subject)">Edit</button>
+            <button class="btn btn-sm btn-danger" @click="deleteSubject(subject.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <nav v-if="totalPages > 1">
+    <ul class="pagination justify-content-end">
+      <li class="page-item" :class="{ disabled: currentPage === 1 }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">Previous</a>
+      </li>
+      <li class="page-item" v-for="page in totalPages" :class="{ active: currentPage === page }" :key="page">
+        <a class="page-link" href="#" @click.prevent="changePage(page)">[[ page ]]</a>
+      </li>
+      <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+        <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">Next</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Modal -->
+  <div class="modal fade" id="subjectModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form @submit.prevent="saveSubject">
+          <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken">
+          <div class="modal-header">
+            <h5 class="modal-title">[[ modalTitle ]]</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label>Name</label>
+              <input v-model="form.name" type="text" class="form-control" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-success">Save</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vue & Axios -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      cookie = cookie.trim();
+      if (cookie.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+const csrfToken = getCookie('csrftoken');
+
+axios.defaults.xsrfHeaderName = "X-CSRFToken";
+axios.defaults.xsrfCookieName = "csrftoken";
+axios.defaults.headers.common['X-CSRFToken'] = csrfToken;
+axios.defaults.withCredentials = true;
+
+const { createApp } = Vue;
+createApp({
+  delimiters: ['[[', ']]'],
+  data() {
+    return {
+      subjects: [],
+      form: { id: null, name: '' },
+      modalTitle: '',
+      status: 'add',
+      message: '',
+      searchQuery: '',
+      currentPage: 1,
+      totalPages: 1,
+      perPage: 5,
+      csrfToken: csrfToken
+    };
+  },
+  mounted() {
+    this.fetchSubjects();
+  },
+  methods: {
+    fetchSubjects() {
+      axios.get('/api/subjects/', {
+        params: {
+          search: this.searchQuery,
+          page: this.currentPage
+        }
+      })
+      .then(res => {
+        this.subjects = res.data.results;
+        this.totalPages = Math.ceil(res.data.count / this.perPage);
+      })
+      .catch(error => {
+        console.error("Error fetching subjects:", error);
+      });
+    },
+    openModal(status, subject = null) {
+      this.status = status;
+      this.modalTitle = status === 'add' ? 'Add Subject' : 'Edit Subject';
+      this.form = status === 'add'
+        ? { id: null, name: '' }
+        : { ...subject };
+      new bootstrap.Modal(document.getElementById('subjectModal')).show();
+    },
+    saveSubject() {
+      const url = this.status === 'add' ? '/api/subjects/' : `/api/subjects/${this.form.id}/`;
+      const method = this.status === 'add' ? 'post' : 'put';
+
+      axios({
+        method: method,
+        url: url,
+        data: this.form,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': this.csrfToken
+        }
+      })
+      .then(() => {
+        this.fetchSubjects();
+        bootstrap.Modal.getInstance(document.getElementById('subjectModal')).hide();
+        this.message = this.status === 'add' ? 'Subject created!' : 'Subject updated!';
+        setTimeout(() => this.message = '', 3000);
+      })
+      .catch(error => {
+        console.error("Error saving subject:", error);
+      });
+    },
+    deleteSubject(id) {
+      Swal.fire({
+        title: 'Are you sure?',
+        text: 'This subject will be deleted permanently.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+      }).then(result => {
+        if (result.isConfirmed) {
+          axios.delete(`/api/subjects/${id}/`, {
+            headers: {
+              'X-CSRFToken': this.csrfToken
+            }
+          })
+          .then(() => {
+            this.fetchSubjects();
+            this.message = 'Subject deleted successfully!';
+            setTimeout(() => this.message = '', 3000);
+          })
+          .catch(error => {
+            console.error("Error deleting subject:", error);
+          });
+        }
+      });
+    },
+    changePage(page) {
+      if (page < 1 || page > this.totalPages) return;
+      this.currentPage = page;
+      this.fetchSubjects();
+    }
+  }
+}).mount('#subjectApp');
+</script>
+{% endblock %}

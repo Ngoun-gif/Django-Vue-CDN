@@ -6,6 +6,9 @@ from backend.views.booking_view import booking_view
 from backend.views.service_view import service_view
 from backend.views.user_view import user_view, user_create, user_update, user_delete
 from backend.views.customer_view import customer_view
+from backend.views.subject_view import subject_view
+from backend.views.teacher_view import teacher_view
+
 
 
 
@@ -25,6 +28,9 @@ urlpatterns = [
     path('<str:role>/user/', user_view, name='role_user'),
 
     path('<str:role>/customer/', customer_view, name='role_customer'),
+    path('<str:role>/subject/', subject_view, name='role_subject'),
+    path('<str:role>/teacher/', teacher_view, name='role_teacher'),
+
 
 
 

@@ -29,4 +29,9 @@ urlpatterns = [
     path('api/', include('backend.api.urls')),
 
    path("csrf/", ensure_csrf_cookie(TemplateView.as_view(template_name="blank.html")), name="csrf"),
+
 ]
+from django.conf import settings
+from django.conf.urls.static import static
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

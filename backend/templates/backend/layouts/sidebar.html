@@ -130,6 +130,35 @@
                 </div>
             </div>
         </li>
+        <!-- Subject -->
+        <li class="nav-item">
+            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseSubject"
+               aria-expanded="{% if request.path == '/admins/subject/' %}true{% else %}false{% endif %}">
+                <i class="fas fa-book"></i>
+                <span>Subject</span>
+            </a>
+            <div id="collapseSubject" class="collapse {% if request.path == '/admins/subject/' %}show{% endif %}" data-parent="#accordionSidebar">
+                <div class="bg-white py-2 collapse-inner rounded">
+                    <a class="collapse-item {% if request.path == '/admins/subject/' %}active{% endif %}" 
+                       href="{% url 'role_subject' role='admins' %}">Subject</a>
+                </div>
+            </div>
+        </li>
+
+        <!-- Teacher -->
+        <li class="nav-item">
+            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseTeacher"
+               aria-expanded="{% if request.path == '/admins/teacher/' %}true{% else %}false{% endif %}">
+                <i class="fab fa-teamspeak"></i>
+                <span>Teacher</span>
+            </a>
+            <div id="collapseTeacher" class="collapse {% if request.path == '/admins/teacher/' %}show{% endif %}" data-parent="#accordionSidebar">
+                <div class="bg-white py-2 collapse-inner rounded">
+                    <a class="collapse-item {% if request.path == '/admins/teacher/' %}active{% endif %}" 
+                       href="{% url 'role_teacher' role='admins' %}">Teacher</a>
+                </div>
+            </div>
+        </li>
     {% endif %}
 
     <!-- General Settings -->
