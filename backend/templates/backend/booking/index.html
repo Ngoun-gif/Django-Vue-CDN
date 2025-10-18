@@ -130,8 +130,6 @@
                             <div v-if="errors.service" class="text-danger small" id="serviceError">[[ errors.service[0] ]]</div>
                         </div>
 
-
-
                         <div class="mb-2">
                             <label for="dateInput" class="form-label">Booking Date *</label>
                             <input id="dateInput" v-model="form.booking_date" type="date" class="form-control" required :disabled="isLoading" aria-describedby="dateError">

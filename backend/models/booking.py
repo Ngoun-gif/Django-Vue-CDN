@@ -3,7 +3,7 @@
 from django.db import models
 from backend.models.customer import Customer
 from .branch import Branch
-from .product_service import Service
+from .service import Service
 
 class Booking(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)

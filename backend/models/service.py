@@ -1,4 +1,4 @@
-# backend/models/product_service.py
+# backend/models/service.py
 
 from django.db import models
 from backend.models.category import Category  # Assuming Category model is defined in category.py
@@ -7,9 +7,7 @@ from backend.models.category import Category  # Assuming Category model is defin
 class Service(models.Model):
     
     name = models.CharField(max_length=100)
-
     category = models.ForeignKey(Category, on_delete=models.CASCADE,null=True )
-
     description = models.TextField(blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     duration_minutes = models.PositiveIntegerField(help_text="Estimated duration in minutes")

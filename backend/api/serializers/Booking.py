@@ -3,7 +3,7 @@ from rest_framework import serializers
 from backend.models.booking import Booking
 from backend.models.customer import Customer
 from backend.models.branch import Branch
-from backend.models.product_service import Service
+from backend.models.service import Service
 from backend.api.serializers.Customer import CustomerSerializer
 from backend.api.serializers.Branch import BranchSerializer
 from backend.api.serializers.Service import ServiceSerializer
