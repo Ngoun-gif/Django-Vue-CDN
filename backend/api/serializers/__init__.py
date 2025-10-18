@@ -26,6 +26,5 @@ class BookingCreateSerializer:
     pass
 
 
-class InvoiceCreateSerializer:
-    pass
+
 

@@ -65,7 +65,7 @@ def register_view(request):
             user = User.objects.create_user(username=username, email=email, password=password)
 
             # Assign role: Customer
-            customer_role, _ = Role.objects.get_or_create(name='Customer')
+            customer_role, _ = Role.objects.get_or_create(name='customer')
             UserRole.objects.create(user=user, role=customer_role)
 
             # Create Customer with minimal info

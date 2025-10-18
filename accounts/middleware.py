@@ -30,7 +30,7 @@ class RoleBasedAccessMiddleware:
         # ✅ Role-based restrictions
         if path.startswith('/admins/') and role != 'Admin':
             return redirect('frontend_home')
-        elif path.startswith('/staff/') and role != 'Staff':
+        elif path.startswith('/staff/') and role != 'staff':
             return redirect('frontend_home')
 
         return self.get_response(request)

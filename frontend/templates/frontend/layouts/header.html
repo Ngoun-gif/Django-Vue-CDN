@@ -29,12 +29,12 @@
                         <a href="{% url 'role_dashboard' role='admins' %}" class="btn btn-sm btn-outline-primary d-flex align-items-center">
                             <i class="fas fa-chart-line me-1"></i> Dashboard
                         </a>
-                    {% elif user|has_role:"Staff" %}
+                    {% elif user|has_role:"staff" %}
                         <!-- Dashboard for Staff -->
                         <a href="{% url 'role_dashboard' role='staff' %}" class="btn btn-sm btn-outline-primary d-flex align-items-center">
                             <i class="fas fa-chart-line me-1"></i> Dashboard
                         </a>
-                    {% elif user|has_role:"Customer" %}
+                    {% elif user|has_role:"customer" %}
                         <!-- Booking for Customer -->
                         <a href="#" class="btn btn-sm btn-outline-primary d-flex align-items-center"
                            data-bs-toggle="modal" data-bs-target="#bookServiceModal">

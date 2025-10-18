@@ -6,7 +6,6 @@ from backend.api.views.Category import CategoryViewSet
 from backend.api.views.Booking import BookingViewSet
 from backend.api.views.Customer import CustomerViewSet
 from backend.api.views.Service import ServiceViewSet
-# from backend.api.views.Invoice import InvoiceViewSet
 from backend.api.views.Role import RoleViewSet
 from backend.api.views.UserRole import UserRoleViewSet
 from backend.api.views.subject import SubjectViewSet
@@ -19,10 +18,8 @@ router.register(r'branches', BranchViewSet)
 router.register(r'bookings', BookingViewSet)
 router.register(r'customers', CustomerViewSet)
 router.register(r'services', ServiceViewSet)
-# router.register(r'invoices', InvoiceViewSet)
 router.register(r'roles', RoleViewSet)
 router.register(r'userroles', UserRoleViewSet)
-
 router.register(r'subjects', SubjectViewSet)
 router.register(r'teachers', TeacherViewSet)
 

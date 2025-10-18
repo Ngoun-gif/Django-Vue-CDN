@@ -2,15 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from accounts.models import UserRole , User
-from django.db import IntegrityError
-from rest_framework.decorators import api_view , permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status , serializers
-from django.contrib.auth.models import User
-from django.core.exceptions import ObjectDoesNotExist
-from django.core.validators import EmailValidator
-from django.core.exceptions import ValidationError
+
 
 
 @login_required

@@ -1,65 +1,52 @@
-# backend/api/serializers/customer.py
 from rest_framework import serializers
-from backend.models.customer import Customer
 from django.contrib.auth.models import User
 from accounts.models import Role, UserRole
+from backend.models import Customer
 
 class CustomerSerializer(serializers.ModelSerializer):
-    customer_name = serializers.CharField(source='user.username', read_only=True)
-    role_name = serializers.CharField(source='user.userrole.role.name', read_only=True)
-
-    # Optional fields for creation
-    username = serializers.CharField(write_only=True, required=False)
-    email = serializers.EmailField(write_only=True, required=False)
-    password = serializers.CharField(write_only=True, required=False)
-    role_id = serializers.IntegerField(write_only=True, required=False)
+    username = serializers.CharField(source='user.username', read_only=True)
+    role_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
         fields = [
-            'id', 'customer_name', 'role_name', 'phone', 'address',
-            'date_of_birth', 'gender', 'created_at',
-            'username', 'email', 'password', 'role_id'
+            'id', 'username', 'role_name',
+            'name', 'address', 'date_of_birth', 'gender', 'phone', 'created_at'
         ]
-        read_only_fields = ['id', 'created_at', 'customer_name', 'role_name']
+        read_only_fields = ['id', 'username', 'role_name', 'created_at']
+
+    def get_role_name(self, obj):
+        user_role = UserRole.objects.filter(user=obj.user).first()
+        return user_role.role.name if user_role else None
+
+
+class CustomerCreateSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True)
+    role_name = serializers.CharField(write_only=True, default='Customer')
+
+    class Meta:
+        model = Customer
+        fields = [
+            'id', 'username', 'password', 'role_name',
+            'name', 'address', 'date_of_birth', 'gender', 'phone', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
         username = validated_data.pop('username')
-        email = validated_data.pop('email', f"{username}@example.com")
-        password = validated_data.pop('password', '123456')
-        role_id = validated_data.pop('role_id')
+        password = validated_data.pop('password')
+        role_name = validated_data.pop('role_name')
 
         # Create User
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password
-        )
+        user = User.objects.create_user(username=username, password=password)
+
+        # Get or Create Role
+        role, _ = Role.objects.get_or_create(name=role_name)
 
         # Assign Role
-        role = Role.objects.get(id=role_id)
         UserRole.objects.create(user=user, role=role)
 
         # Create Customer
-        customer = Customer.objects.create(
-            user=user,
-            **validated_data
-        )
+        customer = Customer.objects.create(user=user, **validated_data)
         return customer
-
-    def update(self, instance, validated_data):
-        # Handle username update with uniqueness check
-        username = validated_data.pop('username', None)
-        if username and instance.user.username != username:
-            if User.objects.filter(username=username).exclude(id=instance.user.id).exists():
-                raise serializers.ValidationError({'username': 'This username is already taken.'})
-            instance.user.username = username
-            instance.user.save()
-
-        # Update editable Customer fields
-        for field in ['phone', 'address', 'gender', 'date_of_birth']:
-            if field in validated_data:
-                setattr(instance, field, validated_data[field])
-
-        instance.save()
-        return instance

@@ -5,7 +5,6 @@ from accounts.models import UserRole, Role
 from backend.models.customer import Customer
 
 class UserSerializer(serializers.ModelSerializer):
-    customer_name = serializers.CharField(source='username', read_only=True)
     role_name = serializers.CharField(source='userrole.role.name', read_only=True)
     role_id = serializers.IntegerField(write_only=True, required=True)
     password = serializers.CharField(write_only=True)
@@ -21,7 +20,6 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'email',
             'active',         # API name
-            'customer_name',
             'role_name',
             'role_id'
         ]
@@ -43,11 +41,8 @@ class UserSerializer(serializers.ModelSerializer):
         role = Role.objects.get(id=role_id)
         UserRole.objects.create(user=user, role=role)
 
-        # Auto-create Customer if role = "customer"
-        if role.name.lower() == "customer":
-            Customer.objects.create(user=user)
+        #
 
-        return user
 
     def update(self, instance, validated_data):
         role_id = validated_data.pop('role_id', None)
@@ -73,8 +68,6 @@ class UserSerializer(serializers.ModelSerializer):
             else:
                 UserRole.objects.create(user=instance, role=role)
 
-            # Auto-create Customer if role changed to customer
-            if role.name.lower() == "customer" and not hasattr(instance, 'customer'):
-                Customer.objects.create(user=instance)
+
 
         return instance
