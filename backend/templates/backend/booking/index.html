@@ -40,6 +40,7 @@
                     <th>Branch</th>
                     <th>Customer</th>
                     <th>Service</th>
+                    <th>Price</th>
                     <th>Booking Date</th>
                     <th>Booking Time</th>
                     <th>Status</th>
@@ -48,15 +49,18 @@
                 </tr>
             </thead>
             <tbody>
-                <tr v-for="booking in bookings" :key="booking.id">
-                    <td>[[ booking.id ]]</td>
+                    <tr v-for="(booking, index) in bookings" :key="booking.id">
+                    <td>[[ index + 1 + (currentPage - 1) * perPage ]]</td>
                     <td>[[ booking.branch.name ]]</td>
-                    <td>[[ booking.customer.customer_name ]]</td>
+                    <td>[[ booking.customer.name ]]</td>
                     <td>[[ booking.service.name ]]</td>
+                    <td>$[[ booking.service.price ]]</td>
                     <td>[[ formatDate(booking.booking_date) ]]</td>
                     <td>[[ formatTime(booking.booking_time) ]]</td>
                     <td>
-                        <span :class="getStatusClass(booking.status)">[[ capitalize(booking.status) ]]</span>
+                        <span :class="getStatusClass(booking.status)">
+                            [[ capitalize(booking.status) ]]
+                        </span>
                     </td>
                     <td>[[ booking.notes || 'N/A' ]]</td>
                     <td style="display: flex; gap: 0.5rem; justify-content: center;">
@@ -112,7 +116,7 @@
                             <label for="customerSelect" class="form-label">Customer *</label>
                             <select id="customerSelect" v-model="form.customer" class="form-control" required :disabled="isLoading" aria-describedby="customerError">
                                 <option :value="null" disabled>Select a customer...</option>
-                                <option v-for="customer in customers" :value="customer.id" :key="customer.id">[[ customer.customer_name ]]</option>
+                                <option v-for="customer in customers" :value="customer.id" :key="customer.id">[[ customer.name ]]</option>
                             </select>
                             <div v-if="errors.customer" class="text-danger small" id="customerError">[[ errors.customer[0] ]]</div>
                         </div>
@@ -121,10 +125,12 @@
                             <label for="serviceSelect" class="form-label">Service *</label>
                             <select id="serviceSelect" v-model="form.service" class="form-control" required :disabled="isLoading" aria-describedby="serviceError">
                                 <option :value="null" disabled>Select a service...</option>
-                                <option v-for="service in services" :value="service.id" :key="service.id">[[ service.name ]]</option>
+                                <option v-for="service in services" :value="service.id" :key="service.id">[[ service.name ]] - [[service.price]] </option>
                             </select>
                             <div v-if="errors.service" class="text-danger small" id="serviceError">[[ errors.service[0] ]]</div>
                         </div>
+
+
 
                         <div class="mb-2">
                             <label for="dateInput" class="form-label">Booking Date *</label>
