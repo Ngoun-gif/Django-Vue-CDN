@@ -27,7 +27,7 @@
     <h3 class="fw-bold text-center mb-3" style="color: var(--primary-color);">Create an Account</h3>
     <p class="text-center mb-4" style="color: var(--text-color);">Sign up to get started with CarCare Pro</p>
 
-    <form method="POST" action="{% url 'register' %}">
+    <form method="POST" action="{% url 'singup' %}">
       {% csrf_token %}
       <div class="mb-4">
         <label class="form-label" for="fullName">Full Name</label>

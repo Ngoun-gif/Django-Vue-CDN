@@ -25,7 +25,7 @@ def login_view(request):
             except Exception:
                 logout(request)  # ✅ logout to stop session loop
                 messages.error(request, "Role not assigned.")
-                return redirect('login')
+                return redirect('singin')
 
             if user_role in ['admins', 'staff']:
                 return redirect('role_dashboard', role=user_role)
@@ -34,7 +34,7 @@ def login_view(request):
         else:
             messages.error(request, "Invalid credentials.")
 
-    return render(request, 'auth/login.html')
+    return render(request, 'auth/signin.html')
 
 
 
@@ -58,7 +58,7 @@ def register_view(request):
         # Validate required fields
         if not username or not password or not email:
             messages.error(request, 'Please fill in all required fields.')
-            return render(request, 'auth/register.html')
+            return render(request, 'auth/signup.html')
 
         try:
             # Create User
@@ -75,15 +75,15 @@ def register_view(request):
                 name=username,  # name from username
             )
 
-            messages.success(request, 'Account created successfully. You can now log in.')
-            return redirect('login')
+            messages.success(request, 'Account created successfully. You can now signin.')
+            return redirect('signin')
 
         except IntegrityError:
             messages.error(request, 'Username already exists.')
         except Exception as e:
             messages.error(request, f'Unexpected error: {str(e)}')
 
-    return render(request, 'auth/register.html')
+    return render(request, 'auth/signup.html')
 
 
 

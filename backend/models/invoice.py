@@ -22,7 +22,7 @@ class Invoice(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
 
-    invoice_number = models.CharField(max_length=50, unique=True)
+    invoice_number = models.CharField(max_length=50, unique=True, blank=True)
     issue_date = models.DateTimeField(default=timezone.now)
     due_date = models.DateTimeField(null=True, blank=True)
 
@@ -53,7 +53,23 @@ class Invoice(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Invoice #{self.invoice_number} - {self.customer.name}"
+        return f"Invoice #{self.invoice_number or 'Draft'} - {self.customer.name}"
+
+    def save(self, *args, **kwargs):
+        # ✅ Auto-generate invoice number if not set
+        if not self.invoice_number:
+            year = timezone.now().year
+            last_invoice = Invoice.objects.filter(invoice_number__startswith=f"INV-{year}-").order_by('-id').first()
+            next_num = 1
+            if last_invoice and last_invoice.invoice_number:
+                try:
+                    # Extract number after last dash
+                    last_num = int(last_invoice.invoice_number.split('-')[-1])
+                    next_num = last_num + 1
+                except ValueError:
+                    pass
+            self.invoice_number = f"INV-{year}-{next_num:04d}"
+        super().save(*args, **kwargs)
 
     def calculate_totals(self):
         """Recalculate subtotal, tax, and total from items"""
