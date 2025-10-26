@@ -2,6 +2,7 @@
 
 {% block content %}
 <div id="bookingApp" class="container-fluid px-4 py-3" style="position: relative;">
+    <!-- ... (keep your existing breadcrumb, alerts, and header) ... -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
@@ -16,22 +17,23 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="w-50">
             <div class="input-group">
-                <input 
-                    v-model="searchQuery" 
-                    @input="debouncedFetch" 
-                    type="text" 
-                    class="form-control" 
+                <input
+                    v-model="searchQuery"
+                    @input="debouncedFetch"
+                    type="text"
+                    class="form-control"
                     placeholder="Search bookings..."
                     aria-label="Search bookings"
                 >
             </div>
         </div>
-        
+
         <button class="btn btn-primary" @click="openModal('add')">
             <i class="fas fa-plus me-1"></i> Add Booking
-        </button> 
+        </button>
     </div>
 
+    <!-- ... (keep your existing table) ... -->
     <div class="table-responsive">
         <table class="table table-bordered table-hover text-center">
             <thead class="table-light">
@@ -39,8 +41,8 @@
                     <th>Booking ID</th>
                     <th>Branch</th>
                     <th>Customer</th>
-                    <th>Service</th>
-                    <th>Price</th>
+                    <th>Services</th>
+                    <th>Total Price</th>
                     <th>Booking Date</th>
                     <th>Booking Time</th>
                     <th>Status</th>
@@ -49,12 +51,18 @@
                 </tr>
             </thead>
             <tbody>
-                    <tr v-for="(booking, index) in bookings" :key="booking.id">
+                <tr v-for="(booking, index) in bookings" :key="booking.id">
                     <td>[[ index + 1 + (currentPage - 1) * perPage ]]</td>
                     <td>[[ booking.branch.name ]]</td>
                     <td>[[ booking.customer.name ]]</td>
-                    <td>[[ booking.service.name ]]</td>
-                    <td>$[[ booking.service.price ]]</td>
+                    <td>
+                        <span v-for="s in booking.services" :key="s.id">
+                            [[ s.name ]]<span v-if="!isLastService(booking.services, s)">, </span>
+                        </span>
+                    </td>
+                    <td>
+                        $[[ booking.services.reduce((sum, s) => sum + parseFloat(s.price), 0).toFixed(2) ]]
+                    </td>
                     <td>[[ formatDate(booking.booking_date) ]]</td>
                     <td>[[ formatTime(booking.booking_time) ]]</td>
                     <td>
@@ -69,7 +77,7 @@
                     </td>
                 </tr>
                 <tr v-if="bookings.length === 0 && !isLoading">
-                    <td colspan="9" class="text-muted">No bookings found.</td>
+                    <td colspan="10" class="text-muted">No bookings found.</td>
                 </tr>
             </tbody>
         </table>
@@ -121,13 +129,73 @@
                             <div v-if="errors.customer" class="text-danger small" id="customerError">[[ errors.customer[0] ]]</div>
                         </div>
 
+                        <!-- Enhanced Services Multi-Select -->
                         <div class="mb-2">
-                            <label for="serviceSelect" class="form-label">Service *</label>
-                            <select id="serviceSelect" v-model="form.service" class="form-control" required :disabled="isLoading" aria-describedby="serviceError">
-                                <option :value="null" disabled>Select a service...</option>
-                                <option v-for="service in services" :value="service.id" :key="service.id">[[ service.name ]] - [[service.price]] </option>
-                            </select>
-                            <div v-if="errors.service" class="text-danger small" id="serviceError">[[ errors.service[0] ]]</div>
+                            <label class="form-label">Services *</label>
+                            <div class="modern-multiselect">
+                                <!-- Selected Services Display -->
+                                <div class="selected-tags" v-if="form.service_ids.length > 0">
+                                    <div v-for="serviceId in form.service_ids" :key="serviceId" class="service-tag">
+                                        <span class="tag-text">[[ getServiceName(serviceId) ]]</span>
+                                        <span class="tag-price">$[[ getServicePrice(serviceId) ]]</span>
+                                        <button type="button" class="tag-remove" @click="removeService(serviceId)" aria-label="Remove service">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Search and Select Area -->
+                                <div class="multiselect-dropdown">
+                                    <div class="dropdown-header" @click="toggleServicesDropdown">
+                                        <span class="placeholder" v-if="form.service_ids.length === 0">
+                                            Select services...
+                                        </span>
+                                        <span class="selected-count" v-else>
+                                            [[ form.service_ids.length ]] service(s) selected - Total: $[[ calculateTotalPrice() ]]
+                                        </span>
+                                        <i class="dropdown-arrow" :class="{ 'rotated': showServicesDropdown }">▼</i>
+                                    </div>
+
+                                    <div class="dropdown-content" v-show="showServicesDropdown">
+                                        <!-- Search Input -->
+                                        <div class="search-box">
+                                            <input
+                                                type="text"
+                                                v-model="serviceSearch"
+                                                placeholder="Search services..."
+                                                class="search-input"
+                                                @input="filterServices"
+                                            >
+                                            <i class="fas fa-search search-icon"></i>
+                                        </div>
+
+                                        <!-- Services List -->
+                                        <div class="services-list">
+                                            <div
+                                                v-for="service in filteredServices"
+                                                :key="service.id"
+                                                class="service-option"
+                                                :class="{ 'selected': form.service_ids.includes(service.id) }"
+                                                @click="toggleService(service.id)"
+                                            >
+                                                <div class="service-checkbox">
+                                                    <i class="fas fa-check" v-if="form.service_ids.includes(service.id)"></i>
+                                                </div>
+                                                <div class="service-info">
+                                                    <div class="service-name">[[ service.name ]]</div>
+                                                    <div class="service-price">$[[ service.price ]]</div>
+                                                </div>
+                                            </div>
+                                            <div v-if="filteredServices.length === 0" class="no-services">
+                                                No services found
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="errors.services" class="text-danger small" id="serviceError">
+                                [[ errors.services[0] ]]
+                            </div>
                         </div>
 
                         <div class="mb-2">
@@ -170,7 +238,6 @@
             </div>
         </div>
     </div>
-    
 </div>
 
 <style>
@@ -193,11 +260,221 @@
 .status-confirmed { background-color: #0d6efd; }
 .status-completed { background-color: #198754; }
 .status-cancelled { background-color: #dc3545; }
+
+/* Modern Multi-Select Styles */
+.modern-multiselect {
+    position: relative;
+    width: 100%;
+}
+
+.selected-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    min-height: 3rem;
+    border: 1px solid #dee2e6;
+}
+
+.service-tag {
+    display: flex;
+    align-items: center;
+    background: #007bff;
+    color: white;
+    padding: 0.375rem 0.75rem;
+    border-radius: 1.5rem;
+    font-size: 0.875rem;
+    gap: 0.5rem;
+}
+
+.tag-text {
+    font-weight: 500;
+}
+
+.tag-price {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
+}
+
+.tag-remove {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.125rem;
+    border-radius: 50%;
+    width: 1.25rem;
+    height: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+}
+
+.tag-remove:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.multiselect-dropdown {
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background: white;
+}
+
+.dropdown-header {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    border-radius: 0.375rem;
+}
+
+.dropdown-header:hover {
+    background: #f8f9fa;
+}
+
+.placeholder {
+    color: #6c757d;
+}
+
+.selected-count {
+    color: #007bff;
+    font-weight: 500;
+}
+
+.dropdown-arrow {
+    transition: transform 0.2s ease;
+    color: #6c757d;
+    font-size: 0.75rem;
+}
+
+.dropdown-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+.dropdown-content {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.search-box {
+    position: relative;
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.search-icon {
+    position: absolute;
+    right: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+}
+
+.services-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.service-option {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f8f9fa;
+    gap: 0.75rem;
+}
+
+.service-option:hover {
+    background: #f8f9fa;
+}
+
+.service-option.selected {
+    background: #e7f3ff;
+}
+
+.service-checkbox {
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid #dee2e6;
+    border-radius: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+}
+
+.service-option.selected .service-checkbox {
+    background: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+.service-checkbox i {
+    font-size: 0.75rem;
+}
+
+.service-info {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.service-name {
+    font-weight: 500;
+    color: #212529;
+}
+
+.service-price {
+    color: #28a745;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.no-services {
+    padding: 1rem;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+}
 </style>
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 
 <script>
 function getCSRFToken() {
@@ -216,15 +493,16 @@ createApp({
             branches: [],
             customers: [],
             services: [],
-            form: { 
+            filteredServices: [],
+            form: {
                 id: null,
                 branch: null,
                 customer: null,
-                service: null,
+                service_ids: [],
                 booking_date: '',
                 booking_time: '',
                 status: 'pending',
-                notes: '' 
+                notes: ''
             },
             modalTitle: '',
             status: 'add',
@@ -234,7 +512,9 @@ createApp({
             totalPages: 1,
             perPage: 10,
             isLoading: false,
-            errors: {}
+            errors: {},
+            showServicesDropdown: false,
+            serviceSearch: ''
         };
     },
     mounted() {
@@ -248,6 +528,15 @@ createApp({
         modalEl.addEventListener('hidden.bs.modal', () => {
             this.errors = {};
             this.resetForm();
+            this.showServicesDropdown = false;
+            this.serviceSearch = '';
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.modern-multiselect')) {
+                this.showServicesDropdown = false;
+            }
         });
     },
     methods: {
@@ -257,6 +546,9 @@ createApp({
                 clearTimeout(timeout);
                 timeout = setTimeout(() => func.apply(this, args), delay);
             };
+        },
+        isLastService(arr, s) {
+            return arr.indexOf(s) === arr.length - 1;
         },
         async fetchBookings() {
             this.isLoading = true;
@@ -269,122 +561,129 @@ createApp({
                     },
                     headers: { 'X-CSRFToken': this.csrfToken }
                 });
-                
+
                 this.bookings = response.data.results || response.data;
                 this.totalPages = Math.ceil((response.data.count || response.data.length) / this.perPage);
             } catch (error) {
                 console.error("Error fetching bookings:", error);
-                this.showError("Failed to load bookings");
             } finally {
                 this.isLoading = false;
             }
         },
         async fetchBranches() {
             try {
-                const response = await axios.get('/api/branches/', {
-                    headers: { 'X-CSRFToken': this.csrfToken }
-                });
+                const response = await axios.get('/api/branches/', { headers: { 'X-CSRFToken': this.csrfToken } });
                 this.branches = response.data.results || response.data;
-            } catch (error) {
-                console.error("Error fetching branches:", error);
-            }
+            } catch (error) { console.error(error); }
         },
         async fetchCustomers() {
             try {
-                const response = await axios.get('/api/customers/', {
-                    headers: { 'X-CSRFToken': this.csrfToken }
-                });
+                const response = await axios.get('/api/customers/', { headers: { 'X-CSRFToken': this.csrfToken } });
                 this.customers = response.data.results || response.data;
-            } catch (error) {
-                console.error("Error fetching customers:", error);
-            }
+            } catch (error) { console.error(error); }
         },
         async fetchServices() {
             try {
-                const response = await axios.get('/api/services/', {
-                    headers: { 'X-CSRFToken': this.csrfToken }
-                });
+                const response = await axios.get('/api/services/', { headers: { 'X-CSRFToken': this.csrfToken } });
                 this.services = response.data.results || response.data;
-            } catch (error) {
-                console.error("Error fetching services:", error);
+                this.filteredServices = [...this.services];
+            } catch (error) { console.error(error); }
+        },
+        toggleServicesDropdown() {
+            this.showServicesDropdown = !this.showServicesDropdown;
+            if (this.showServicesDropdown) {
+                this.filterServices();
             }
+        },
+        filterServices() {
+            const searchTerm = this.serviceSearch.toLowerCase();
+            this.filteredServices = this.services.filter(service =>
+                service.name.toLowerCase().includes(searchTerm)
+            );
+        },
+        toggleService(serviceId) {
+            const index = this.form.service_ids.indexOf(serviceId);
+            if (index > -1) {
+                this.form.service_ids.splice(index, 1);
+            } else {
+                this.form.service_ids.push(serviceId);
+            }
+        },
+        removeService(serviceId) {
+            this.form.service_ids = this.form.service_ids.filter(id => id !== serviceId);
+        },
+        getServiceName(serviceId) {
+            const service = this.services.find(s => s.id === serviceId);
+            return service ? service.name : 'Unknown Service';
+        },
+        getServicePrice(serviceId) {
+            const service = this.services.find(s => s.id === serviceId);
+            return service ? parseFloat(service.price).toFixed(2) : '0.00';
+        },
+        calculateTotalPrice() {
+            return this.form.service_ids.reduce((total, serviceId) => {
+                const service = this.services.find(s => s.id === serviceId);
+                return total + (service ? parseFloat(service.price) : 0);
+            }, 0).toFixed(2);
         },
         openModal(status, booking = null) {
             this.status = status;
             this.modalTitle = status === 'add' ? 'Add Booking' : 'Edit Booking';
             this.errors = {};
-            
             this.resetForm();
-            
+            this.serviceSearch = '';
+            this.filterServices();
             if (status === 'edit' && booking) {
                 this.form = {
                     id: booking.id,
                     branch: booking.branch.id,
                     customer: booking.customer.id,
-                    service: booking.service.id,
+                    service_ids: booking.services.map(s => s.id),
                     booking_date: booking.booking_date,
                     booking_time: booking.booking_time,
                     status: booking.status,
-                    notes: booking.notes || '' 
+                    notes: booking.notes || ''
                 };
             }
-            
             const modal = new bootstrap.Modal(document.getElementById('bookingModal'));
             modal.show();
         },
         resetForm() {
-            this.form = { 
+            this.form = {
                 id: null,
                 branch: null,
                 customer: null,
-                service: null,
+                service_ids: [],
                 booking_date: '',
                 booking_time: '',
                 status: 'pending',
-                notes: '' 
+                notes: ''
             };
         },
         async saveBooking() {
             this.isLoading = true;
             this.errors = {};
-            
             try {
                 const url = this.status === 'add' ? '/api/bookings/' : `/api/bookings/${this.form.id}/`;
                 const method = this.status === 'add' ? 'post' : 'put';
-                
                 const payload = {
                     branch_id: this.form.branch,
                     customer_id: this.form.customer,
-                    service_id: this.form.service,
+                    service_ids: this.form.service_ids,
                     booking_date: this.form.booking_date,
                     booking_time: this.form.booking_time,
                     status: this.form.status,
-                    notes: this.form.notes 
+                    notes: this.form.notes
                 };
-                
-                await axios({
-                    method,
-                    url,
-                    data: payload,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': this.csrfToken
-                    }
-                });
-                
+                await axios({ method, url, data: payload, headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken }});
                 this.fetchBookings();
                 bootstrap.Modal.getInstance(document.getElementById('bookingModal')).hide();
-                this.showSuccess(this.status === 'add' ? 'Booking created successfully!' : 'Booking updated successfully!');
+                this.message = this.status === 'add' ? 'Booking created successfully!' : 'Booking updated successfully!';
+                setTimeout(() => this.message = '', 3000);
             } catch (error) {
-                if (error.response?.status === 400) {
-                    this.errors = error.response.data;
-                } else {
-                    console.error("Error saving booking:", error);
-                    this.showError("Failed to save booking");
-                }
-            } finally {
-                this.isLoading = false;
-            }
+                if (error.response?.status === 400) { this.errors = error.response.data; }
+                else { console.error(error); Swal.fire({icon:'error',title:'Error',text:'Failed to save booking'}); }
+            } finally { this.isLoading = false; }
         },
         deleteBooking(id) {
             Swal.fire({
@@ -398,60 +697,16 @@ createApp({
                 cancelButtonText: 'Cancel'
             }).then(async (result) => {
                 if (result.isConfirmed) {
-                    try {
-                        await axios.delete(`/api/bookings/${id}/`, {
-                            headers: { 'X-CSRFToken': this.csrfToken }
-                        });
-                        this.fetchBookings();
-                        this.showSuccess('Booking deleted successfully!');
-                    } catch (error) {
-                        console.error("Error deleting booking:", error);
-                        this.showError("Failed to delete booking");
-                    }
+                    try { await axios.delete(`/api/bookings/${id}/`, { headers: { 'X-CSRFToken': this.csrfToken }}); this.fetchBookings(); Swal.fire('Deleted!', 'Booking deleted.', 'success'); }
+                    catch (error) { console.error(error); Swal.fire({icon:'error',title:'Error',text:'Failed to delete booking'}); }
                 }
             });
         },
-        changePage(page) {
-            if (page < 1 || page > this.totalPages) return;
-            this.currentPage = page;
-            this.fetchBookings();
-        },
-        showSuccess(message) {
-            this.message = message;
-            setTimeout(() => this.message = '', 3000);
-        },
-        showError(message) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: message
-            });
-        },
-        formatDate(dateStr) {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-        },
-        formatTime(timeStr) {
-            if (!timeStr) return '';
-            const [hours, minutes] = timeStr.split(':');
-            const date = new Date();
-            date.setHours(hours, minutes, 0);
-            return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true });
-        },
-        capitalize(str) {
-            if (!str) return '';
-            return str.charAt(0).toUpperCase() + str.slice(1);
-        },
-        getStatusClass(status) {
-            const statusMap = {
-                'pending': 'status-pending',
-                'confirmed': 'status-confirmed',
-                'completed': 'status-completed',
-                'cancelled': 'status-cancelled'
-            };
-            return ['status-badge', statusMap[status] || ''];
-        }
+        changePage(page) { if (page < 1 || page > this.totalPages) return; this.currentPage = page; this.fetchBookings(); },
+        formatDate(dateStr) { if (!dateStr) return ''; const date = new Date(dateStr); return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); },
+        formatTime(timeStr) { if (!timeStr) return ''; const [hours, minutes] = timeStr.split(':'); const date = new Date(); date.setHours(hours, minutes, 0); return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true }); },
+        capitalize(str) { if (!str) return ''; return str.charAt(0).toUpperCase() + str.slice(1); },
+        getStatusClass(status) { const statusMap = { 'pending':'status-pending','confirmed':'status-confirmed','completed':'status-completed','cancelled':'status-cancelled' }; return ['status-badge', statusMap[status] || '']; }
     }
 }).mount('#bookingApp');
 </script>

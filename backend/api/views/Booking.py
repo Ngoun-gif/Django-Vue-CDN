@@ -8,17 +8,20 @@ class BookingViewSet(viewsets.ModelViewSet):
     queryset = Booking.objects.all().order_by('id')
     serializer_class = BookingSerializer
 
-    # Enable filtering backends
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
 
-    # Fields allowed for search (full-text)
     search_fields = [
-        'customer__user__username',  # Search by customer's username
-        'branch__name',              # If branch has a name field
-        'service__name',             # Service name
+        'customer__user__username',
+        'branch__name',
+        'services__name',  # ✅ plural
         'status',
         'notes',
     ]
 
-    # Fields allowed for exact filtering
-    filterset_fields = ['status', 'booking_date', 'branch', 'customer', 'service']
+    filterset_fields = [
+        'status',
+        'booking_date',
+        'branch',
+        'customer',
+        'services',  # ✅ plural
+    ]

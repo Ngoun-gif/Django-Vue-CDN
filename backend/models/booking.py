@@ -8,7 +8,7 @@ from .service import Service
 class Booking(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True)
-    service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True)
+    services = models.ManyToManyField(Service, related_name='bookings')
     booking_date = models.DateField()
     booking_time = models.TimeField()
     status = models.CharField(
