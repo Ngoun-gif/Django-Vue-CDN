@@ -17,6 +17,7 @@ class BookingSerializer(serializers.ModelSerializer):
     customer_id = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), source='customer', write_only=True)
     branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True)
     service_ids = serializers.PrimaryKeyRelatedField(queryset=Service.objects.all(), source='services', many=True, write_only=True)
+    total_price = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Booking
@@ -25,9 +26,14 @@ class BookingSerializer(serializers.ModelSerializer):
             'customer', 'customer_id',
             'branch', 'branch_id',
             'services', 'service_ids',
+            'total_price',
             'booking_date',
             'booking_time',
             'status',
             'notes',
         ]
+
+    def get_total_price(self, obj):
+        total = sum([float(service.price) for service in obj.services.all()])
+        return "{:.2f}".format(total)  # always two decimals
 

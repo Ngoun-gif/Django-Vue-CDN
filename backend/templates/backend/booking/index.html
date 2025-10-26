@@ -60,9 +60,8 @@
                             [[ s.name ]]<span v-if="!isLastService(booking.services, s)">, </span>
                         </span>
                     </td>
-                    <td>
-                        $[[ booking.services.reduce((sum, s) => sum + parseFloat(s.price), 0).toFixed(2) ]]
-                    </td>
+                    <td>$[[ parseFloat(booking.total_price).toFixed(2) ]]</td>
+
                     <td>[[ formatDate(booking.booking_date) ]]</td>
                     <td>[[ formatTime(booking.booking_time) ]]</td>
                     <td>
