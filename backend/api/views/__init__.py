@@ -20,3 +20,6 @@ class CategoryViewSet:
 
 class UserViewSet:
     pass
+
+class InvoiceViewSet:
+    pass

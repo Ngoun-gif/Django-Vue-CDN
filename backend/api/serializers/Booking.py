@@ -10,6 +10,7 @@ from backend.models.service import Service
 
 # backend/api/serializers/Booking.py
 class BookingSerializer(serializers.ModelSerializer):
+
     customer = CustomerSerializer(read_only=True)
     branch = BranchSerializer(read_only=True)
     services = ServiceSerializer(read_only=True, many=True)
