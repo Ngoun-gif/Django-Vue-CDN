@@ -15,6 +15,7 @@ class BookingSerializer(serializers.ModelSerializer):
     branch = BranchSerializer(read_only=True)
     services = ServiceSerializer(read_only=True, many=True)
 
+
     customer_id = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), source='customer', write_only=True)
     branch_id = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), source='branch', write_only=True)
     service_ids = serializers.PrimaryKeyRelatedField(queryset=Service.objects.all(), source='services', many=True, write_only=True)

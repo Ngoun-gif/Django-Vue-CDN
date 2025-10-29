@@ -8,10 +8,12 @@ from backend.models.booking import Booking
 from backend.api.serializers.Service import ServiceSerializer
 from backend.api.serializers.Customer import CustomerSerializer
 from backend.api.serializers.Branch import BranchSerializer
+from backend.api.serializers.Booking import BookingSerializer
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
     # Read-only nested serializers
+    booking = BookingSerializer(read_only=True)
     customer = CustomerSerializer(read_only=True)
     branch = BranchSerializer(read_only=True)
     services = ServiceSerializer(read_only=True, many=True)
@@ -23,13 +25,13 @@ class InvoiceSerializer(serializers.ModelSerializer):
         queryset=Booking.objects.all(), source='booking', write_only=True, required=False, allow_null=True
     )
     service_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Service.objects.all(), source='services', many=True, write_only=True
+        queryset=Service.objects.all(), source='services', many=True, write_only=True, required=False
     )
     branch_id = serializers.PrimaryKeyRelatedField(
         queryset=Branch.objects.all(), source='branch', write_only=True, required=False, allow_null=True
     )
     customer_id = serializers.PrimaryKeyRelatedField(
-        queryset=Customer.objects.all(), source='customer', write_only=True
+        queryset=Customer.objects.all(), source='customer', write_only=True, required=False, allow_null=True
     )
 
     class Meta:
@@ -42,6 +44,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'branch_id',
             'customer',
             'customer_id',
+            'booking',
             'booking_id',
             'services',
             'service_ids',
@@ -61,20 +64,40 @@ class InvoiceSerializer(serializers.ModelSerializer):
         read_only_fields = ['subtotal', 'tax', 'grand_total', 'created_at', 'updated_at']
 
     def create(self, validated_data):
+        """
+        Allow creating invoice either:
+        - From manual service_ids, OR
+        - From an existing booking (auto-copy details)
+        """
         services = validated_data.pop('services', [])
-        invoice = Invoice.objects.create(**validated_data)
-        invoice.services.set(services)
-        invoice.save()  # This will trigger update_totals()
+        booking = validated_data.get('booking', None)
+
+        # Create invoice instance
+        invoice = Invoice(**validated_data)
+
+        # If created from a booking
+        if booking:
+            # Auto-copy related info
+            invoice.customer = booking.customer
+            invoice.branch = booking.branch
+            invoice.save()  # Need to save before setting M2M
+            invoice.services.set(booking.services.all())
+        else:
+            invoice.save()
+            if services:
+                invoice.services.set(services)
+
+        # Trigger total recalculation
+        invoice.save()
         return invoice
 
     def update(self, instance, validated_data):
         services = validated_data.pop('services', None)
-
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         if services is not None:
             instance.services.set(services)
 
-        instance.save()  # Trigger total recalculation
+        instance.save()  # Trigger recalculation
         return instance

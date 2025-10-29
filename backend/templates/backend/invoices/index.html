@@ -41,6 +41,7 @@
                     <th>Invoice Date</th>
                     <th>Branch</th>
                     <th>Customer</th>
+                    <th>Booking</th>
                     <th>Services</th>
                     <th>Subtotal</th>
                     <th>Tax</th>
@@ -63,8 +64,14 @@
                     <td>[[ invoice.branch ? invoice.branch.name : 'N/A' ]]</td>
                     <td>[[ invoice.customer.name ]]</td>
                     <td>
-                        <span v-for="s in invoice.services" :key="s.id">
-                            [[ s.name ]]<span v-if="!isLastService(invoice.services, s)">, </span>
+                        <span v-if="invoice.booking" class="badge bg-info">
+                            [[ invoice.booking.booking_number || `Booking #${invoice.booking.id}` ]]
+                        </span>
+                        <span v-else class="text-muted">Manual</span>
+                    </td>
+                    <td>
+                        <span v-for="(s, sIndex) in invoice.services" :key="s.id">
+                            [[ s.name ]]<span v-if="sIndex < invoice.services.length - 1">, </span>
                         </span>
                         <span v-if="invoice.services.length === 0" class="text-muted">No services</span>
                     </td>
@@ -76,11 +83,11 @@
                     </td>
                     <td>
                         <span :class="getStatusClass(invoice.status)">
-                            [[ capitalize(invoice.status) ]]
+                            [[ invoice.status_display || capitalize(invoice.status) ]]
                         </span>
                     </td>
                     <td>
-                        <span class="text-capitalize">[[ invoice.payment_method ]]</span>
+                        <span class="text-capitalize">[[ invoice.payment_method_display || invoice.payment_method ]]</span>
                     </td>
                     <td>
                         [[ invoice.payment_deadline ? formatDate(invoice.payment_deadline) : 'N/A' ]]
@@ -104,7 +111,7 @@
                     </td>
                 </tr>
                 <tr v-if="invoices.length === 0 && !isLoading">
-                    <td colspan="15" class="text-muted">No invoices found.</td>
+                    <td colspan="16" class="text-muted">No invoices found.</td>
                 </tr>
             </tbody>
         </table>
@@ -139,6 +146,68 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" :disabled="isLoading"></button>
                     </div>
                     <div class="modal-body">
+                        <!-- Creation Method Selection -->
+                        <div class="row mb-4" v-if="status === 'add'">
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Create Invoice From:</label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="radio"
+                                            v-model="creationMethod"
+                                            value="manual"
+                                            id="manualMethod"
+                                        >
+                                        <label class="form-check-label" for="manualMethod">
+                                            Manual Entry
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="radio"
+                                            v-model="creationMethod"
+                                            value="booking"
+                                            id="bookingMethod"
+                                        >
+                                        <label class="form-check-label" for="bookingMethod">
+                                            From Booking
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Booking Selection (when creation method is 'booking') -->
+                        <div class="row mb-3" v-if="status === 'add' && creationMethod === 'booking'">
+                            <div class="col-12">
+                                <label for="bookingSelect" class="form-label">Select Booking *</label>
+                                <select
+                                    id="bookingSelect"
+                                    v-model="selectedBookingId"
+                                    class="form-control"
+                                    :disabled="isLoading"
+                                    @change="onBookingSelect"
+                                    aria-describedby="bookingError"
+                                >
+                                    <option :value="null" disabled>Select a booking...</option>
+                                    <option v-for="booking in availableBookings" :value="booking.id" :key="booking.id">
+                                        [[ booking.booking_number || `Booking #${booking.id}` ]] -
+                                        [[ booking.customer.name ]] -
+                                        [[ formatDate(booking.booking_date) ]] -
+                                        $[[ booking.total_amount ]]
+                                    </option>
+                                </select>
+                                <div v-if="errors.booking_id" class="text-danger small" id="bookingError">
+                                    [[ errors.booking_id[0] ]]
+                                </div>
+                                <div class="form-text">
+                                    Selecting a booking will automatically populate customer, branch, and services.
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="row">
                             <!-- Left Column -->
                             <div class="col-md-6">
@@ -167,7 +236,7 @@
                                         type="date"
                                         class="form-control"
                                         required
-                                        :disabled="isLoading"
+                                        :disabled="isLoading || (creationMethod === 'booking' && selectedBookingId)"
                                         aria-describedby="invoiceDateError"
                                     >
                                     <div v-if="errors.invoice_date" class="text-danger small" id="invoiceDateError">
@@ -181,7 +250,7 @@
                                         id="branchSelect"
                                         v-model="form.branch"
                                         class="form-control"
-                                        :disabled="isLoading"
+                                        :disabled="isLoading || (creationMethod === 'booking' && selectedBookingId)"
                                         aria-describedby="branchError"
                                     >
                                         <option :value="null">Select a branch...</option>
@@ -189,8 +258,8 @@
                                             [[ branch.name ]]
                                         </option>
                                     </select>
-                                    <div v-if="errors.branch" class="text-danger small" id="branchError">
-                                        [[ errors.branch[0] ]]
+                                    <div v-if="errors.branch_id" class="text-danger small" id="branchError">
+                                        [[ errors.branch_id[0] ]]
                                     </div>
                                 </div>
 
@@ -201,7 +270,7 @@
                                         v-model="form.customer"
                                         class="form-control"
                                         required
-                                        :disabled="isLoading"
+                                        :disabled="isLoading || (creationMethod === 'booking' && selectedBookingId)"
                                         aria-describedby="customerError"
                                     >
                                         <option :value="null" disabled>Select a customer...</option>
@@ -209,8 +278,8 @@
                                             [[ customer.name ]] - [[ customer.phone ]]
                                         </option>
                                     </select>
-                                    <div v-if="errors.customer" class="text-danger small" id="customerError">
-                                        [[ errors.customer[0] ]]
+                                    <div v-if="errors.customer_id" class="text-danger small" id="customerError">
+                                        [[ errors.customer_id[0] ]]
                                     </div>
                                 </div>
                             </div>
@@ -292,72 +361,82 @@
                             </div>
                         </div>
 
-                        <!-- Services Section -->
-                        <div class="mb-3">
-                            <label class="form-label">Services *</label>
-                            <div class="modern-multiselect">
-                                <!-- Selected Services Display -->
-                                <div class="selected-tags" v-if="form.service_ids.length > 0">
-                                    <div v-for="serviceId in form.service_ids" :key="serviceId" class="service-tag">
-                                        <span class="tag-text">[[ getServiceName(serviceId) ]]</span>
-                                        <span class="tag-price">$[[ getServicePrice(serviceId) ]]</span>
-                                        <button type="button" class="tag-remove" @click="removeService(serviceId)" aria-label="Remove service">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Search and Select Area -->
-                                <div class="multiselect-dropdown">
-                                    <div class="dropdown-header" @click="toggleServicesDropdown">
-                                        <span class="placeholder" v-if="form.service_ids.length === 0">
-                                            Select services...
-                                        </span>
-                                        <span class="selected-count" v-else>
-                                            [[ form.service_ids.length ]] service(s) selected - Subtotal: $[[ calculateSubtotal() ]]
-                                        </span>
-                                        <i class="dropdown-arrow" :class="{ 'rotated': showServicesDropdown }">▼</i>
-                                    </div>
-
-                                    <div class="dropdown-content" v-show="showServicesDropdown">
-                                        <!-- Search Input -->
-                                        <div class="search-box">
-                                            <input
-                                                type="text"
-                                                v-model="serviceSearch"
-                                                placeholder="Search services..."
-                                                class="search-input"
-                                                @input="filterServices"
-                                            >
-                                            <i class="fas fa-search search-icon"></i>
-                                        </div>
-
-                                        <!-- Services List -->
-                                        <div class="services-list">
-                                            <div
-                                                v-for="service in filteredServices"
-                                                :key="service.id"
-                                                class="service-option"
-                                                :class="{ 'selected': form.service_ids.includes(service.id) }"
-                                                @click="toggleService(service.id)"
-                                            >
-                                                <div class="service-checkbox">
-                                                    <i class="fas fa-check" v-if="form.service_ids.includes(service.id)"></i>
-                                                </div>
-                                                <div class="service-info">
-                                                    <div class="service-name">[[ service.name ]]</div>
-                                                    <div class="service-price">$[[ service.price ]]</div>
-                                                </div>
-                                            </div>
-                                            <div v-if="filteredServices.length === 0" class="no-services">
-                                                No services found
+                        <!-- Services Section - Full Width -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    <label class="form-label">Services *</label>
+                                    <div class="modern-multiselect">
+                                        <!-- Selected Services Display -->
+                                        <div class="selected-tags" v-if="form.service_ids.length > 0">
+                                            <div v-for="serviceId in form.service_ids" :key="serviceId" class="service-tag">
+                                                <span class="tag-text">[[ getServiceName(serviceId) ]]</span>
+                                                <span class="tag-price">$[[ getServicePrice(serviceId) ]]</span>
+                                                <button type="button" class="tag-remove" @click="removeService(serviceId)" aria-label="Remove service" :disabled="creationMethod === 'booking' && selectedBookingId">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
                                             </div>
                                         </div>
+
+                                        <!-- Search and Select Area -->
+                                        <div class="multiselect-dropdown" v-if="creationMethod !== 'booking' || !selectedBookingId">
+                                            <div class="dropdown-header" @click="toggleServicesDropdown">
+                                                <span class="placeholder" v-if="form.service_ids.length === 0">
+                                                    Select services...
+                                                </span>
+                                                <span class="selected-count" v-else>
+                                                    [[ form.service_ids.length ]] service(s) selected - Subtotal: $[[ calculateSubtotal() ]]
+                                                </span>
+                                                <i class="dropdown-arrow" :class="{ 'rotated': showServicesDropdown }">▼</i>
+                                            </div>
+
+                                            <div class="dropdown-content" v-show="showServicesDropdown">
+                                                <!-- Search Input -->
+                                                <div class="search-box">
+                                                    <input
+                                                        type="text"
+                                                        v-model="serviceSearch"
+                                                        placeholder="Search services..."
+                                                        class="search-input"
+                                                        @input="filterServices"
+                                                    >
+                                                    <i class="fas fa-search search-icon"></i>
+                                                </div>
+
+                                                <!-- Services List -->
+                                                <div class="services-list">
+                                                    <div
+                                                        v-for="service in filteredServices"
+                                                        :key="service.id"
+                                                        class="service-option"
+                                                        :class="{ 'selected': form.service_ids.includes(service.id) }"
+                                                        @click="toggleService(service.id)"
+                                                    >
+                                                        <div class="service-checkbox">
+                                                            <i class="fas fa-check" v-if="form.service_ids.includes(service.id)"></i>
+                                                        </div>
+                                                        <div class="service-info">
+                                                            <div class="service-name">[[ service.name ]]</div>
+                                                            <div class="service-price">$[[ service.price ]]</div>
+                                                        </div>
+                                                    </div>
+                                                    <div v-if="filteredServices.length === 0" class="no-services">
+                                                        No services found
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div v-else class="booking-services-info">
+                                            <div class="alert alert-info mb-0">
+                                                <i class="fas fa-info-circle me-2"></i>
+                                                Services are automatically populated from the selected booking.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="errors.service_ids" class="text-danger small" id="serviceError">
+                                        [[ errors.service_ids[0] ]]
                                     </div>
                                 </div>
-                            </div>
-                            <div v-if="errors.services" class="text-danger small" id="serviceError">
-                                [[ errors.services[0] ]]
                             </div>
                         </div>
 
@@ -509,6 +588,11 @@
     background: rgba(255, 255, 255, 0.2);
 }
 
+.tag-remove:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
 .multiselect-dropdown {
     position: relative;
     border: 1px solid #dee2e6;
@@ -658,6 +742,10 @@
     color: #6c757d;
     font-style: italic;
 }
+
+.booking-services-info {
+    margin-top: 0.5rem;
+}
 </style>
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -682,6 +770,7 @@ createApp({
             branches: [],
             customers: [],
             services: [],
+            availableBookings: [],
             filteredServices: [],
             form: {
                 id: null,
@@ -689,6 +778,7 @@ createApp({
                 invoice_date: '',
                 branch: null,
                 customer: null,
+                booking_id: null,
                 service_ids: [],
                 subtotal: '0.00',
                 tax: '0.00',
@@ -701,6 +791,8 @@ createApp({
             },
             modalTitle: '',
             status: 'add',
+            creationMethod: 'manual', // 'manual' or 'booking'
+            selectedBookingId: null,
             message: '',
             searchQuery: '',
             currentPage: 1,
@@ -719,6 +811,7 @@ createApp({
         this.fetchBranches();
         this.fetchCustomers();
         this.fetchServices();
+        this.fetchAvailableBookings();
 
         const modalEl = document.getElementById('invoiceModal');
         modalEl.addEventListener('hidden.bs.modal', () => {
@@ -726,6 +819,8 @@ createApp({
             this.resetForm();
             this.showServicesDropdown = false;
             this.serviceSearch = '';
+            this.creationMethod = 'manual';
+            this.selectedBookingId = null;
         });
 
         // Close dropdown when clicking outside
@@ -743,9 +838,6 @@ createApp({
                 timeout = setTimeout(() => func.apply(this, args), delay);
             };
         },
-        isLastService(arr, s) {
-            return arr.indexOf(s) === arr.length - 1;
-        },
         async fetchInvoices() {
             this.isLoading = true;
             try {
@@ -762,6 +854,11 @@ createApp({
                 this.totalPages = Math.ceil((response.data.count || response.data.length) / this.perPage);
             } catch (error) {
                 console.error("Error fetching invoices:", error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to fetch invoices'
+                });
             } finally {
                 this.isLoading = false;
             }
@@ -770,22 +867,73 @@ createApp({
             try {
                 const response = await axios.get('/api/branches/', { headers: { 'X-CSRFToken': this.csrfToken } });
                 this.branches = response.data.results || response.data;
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error("Error fetching branches:", error);
+            }
         },
         async fetchCustomers() {
             try {
                 const response = await axios.get('/api/customers/', { headers: { 'X-CSRFToken': this.csrfToken } });
                 this.customers = response.data.results || response.data;
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error("Error fetching customers:", error);
+            }
         },
         async fetchServices() {
             try {
                 const response = await axios.get('/api/services/', { headers: { 'X-CSRFToken': this.csrfToken } });
                 this.services = response.data.results || response.data;
                 this.filteredServices = [...this.services];
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error("Error fetching services:", error);
+            }
+        },
+        async fetchAvailableBookings() {
+            try {
+                // Fetch bookings that don't have invoices yet and are completed/confirmed
+                const response = await axios.get('/api/bookings/', {
+                    params: { has_invoice: false, status: 'completed' },
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                this.availableBookings = response.data.results || response.data;
+            } catch (error) {
+                console.error("Error fetching available bookings:", error);
+            }
+        },
+        async onBookingSelect() {
+            if (!this.selectedBookingId) return;
+
+            try {
+                const response = await axios.get(`/api/bookings/${this.selectedBookingId}/`, {
+                    headers: { 'X-CSRFToken': this.csrfToken }
+                });
+                const booking = response.data;
+
+                // Auto-populate form with booking data
+                this.form.booking_id = booking.id;
+                this.form.customer = booking.customer.id;
+                this.form.branch = booking.branch ? booking.branch.id : null;
+                this.form.service_ids = booking.services.map(service => service.id);
+
+                // Use booking date as invoice date if not set
+                if (!this.form.invoice_date && booking.booking_date) {
+                    this.form.invoice_date = booking.booking_date;
+                }
+
+                // Calculate totals
+                this.calculateTotals();
+
+            } catch (error) {
+                console.error("Error fetching booking details:", error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to load booking details'
+                });
+            }
         },
         toggleServicesDropdown() {
+            if (this.creationMethod === 'booking' && this.selectedBookingId) return;
             this.showServicesDropdown = !this.showServicesDropdown;
             if (this.showServicesDropdown) {
                 this.filterServices();
@@ -798,6 +946,7 @@ createApp({
             );
         },
         toggleService(serviceId) {
+            if (this.creationMethod === 'booking' && this.selectedBookingId) return;
             const index = this.form.service_ids.indexOf(serviceId);
             if (index > -1) {
                 this.form.service_ids.splice(index, 1);
@@ -807,6 +956,7 @@ createApp({
             this.calculateTotals();
         },
         removeService(serviceId) {
+            if (this.creationMethod === 'booking' && this.selectedBookingId) return;
             this.form.service_ids = this.form.service_ids.filter(id => id !== serviceId);
             this.calculateTotals();
         },
@@ -841,6 +991,8 @@ createApp({
             this.resetForm();
             this.serviceSearch = '';
             this.filterServices();
+            this.creationMethod = 'manual';
+            this.selectedBookingId = null;
 
             if (status === 'edit' && invoice) {
                 this.form = {
@@ -849,10 +1001,11 @@ createApp({
                     invoice_date: invoice.invoice_date,
                     branch: invoice.branch ? invoice.branch.id : null,
                     customer: invoice.customer.id,
+                    booking_id: invoice.booking ? invoice.booking.id : null,
                     service_ids: invoice.services.map(s => s.id),
                     subtotal: invoice.subtotal,
                     tax: invoice.tax,
-                    additional_fee: invoice.additional_fee,
+                    additional_fee: invoice.additional_fee || '0.00',
                     grand_total: invoice.grand_total,
                     status: invoice.status,
                     payment_method: invoice.payment_method,
@@ -863,6 +1016,7 @@ createApp({
             } else {
                 // Generate invoice number for new invoices
                 this.generateInvoiceNumber();
+                this.fetchAvailableBookings();
             }
 
             const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
@@ -884,6 +1038,7 @@ createApp({
                 invoice_date: '',
                 branch: null,
                 customer: null,
+                booking_id: null,
                 service_ids: [],
                 subtotal: '0.00',
                 tax: '0.00',
@@ -901,23 +1056,37 @@ createApp({
             try {
                 const url = this.status === 'add' ? '/api/invoices/' : `/api/invoices/${this.form.id}/`;
                 const method = this.status === 'add' ? 'post' : 'put';
+
+                // Prepare payload according to serializer expectations
                 const payload = {
                     invoice_number: this.form.invoice_number,
                     invoice_date: this.form.invoice_date,
-                    branch_id: this.form.branch,
                     customer_id: this.form.customer,
-                    service_ids: this.form.service_ids,
-                    subtotal: this.form.subtotal,
-                    tax: this.form.tax,
-                    additional_fee: this.form.additional_fee,
-                    grand_total: this.form.grand_total,
                     status: this.form.status,
                     payment_method: this.form.payment_method,
                     notes: this.form.notes,
-                    payment_deadline: this.form.payment_deadline
+                    payment_deadline: this.form.payment_deadline || null
                 };
 
-                await axios({
+                // Add optional fields only if they have values
+                if (this.form.branch) {
+                    payload.branch_id = this.form.branch;
+                }
+
+                if (this.form.service_ids.length > 0) {
+                    payload.service_ids = this.form.service_ids;
+                }
+
+                if (this.form.additional_fee) {
+                    payload.additional_fee = parseFloat(this.form.additional_fee);
+                }
+
+                // Add booking_id if creating from booking
+                if (this.status === 'add' && this.creationMethod === 'booking' && this.selectedBookingId) {
+                    payload.booking_id = this.selectedBookingId;
+                }
+
+                const response = await axios({
                     method,
                     url,
                     data: payload,
@@ -934,12 +1103,16 @@ createApp({
             } catch (error) {
                 if (error.response?.status === 400) {
                     this.errors = error.response.data;
+                    // Handle field name mapping if needed
+                    if (this.errors.services) {
+                        this.errors.service_ids = this.errors.services;
+                    }
                 } else {
-                    console.error(error);
+                    console.error('Error saving invoice:', error);
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
-                        text: 'Failed to save invoice'
+                        text: 'Failed to save invoice: ' + (error.response?.data?.detail || error.message)
                     });
                 }
             } finally {
@@ -947,7 +1120,7 @@ createApp({
             }
         },
         async deleteInvoice(id) {
-            Swal.fire({
+            const result = await Swal.fire({
                 title: 'Are you sure?',
                 text: 'This action cannot be undone.',
                 icon: 'warning',
@@ -956,22 +1129,24 @@ createApp({
                 cancelButtonColor: '#3085d6',
                 confirmButtonText: 'Delete',
                 cancelButtonText: 'Cancel'
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    try {
-                        await axios.delete(`/api/invoices/${id}/`, { headers: { 'X-CSRFToken': this.csrfToken }});
-                        this.fetchInvoices();
-                        Swal.fire('Deleted!', 'Invoice deleted.', 'success');
-                    } catch (error) {
-                        console.error(error);
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: 'Failed to delete invoice'
-                        });
-                    }
-                }
             });
+
+            if (result.isConfirmed) {
+                try {
+                    await axios.delete(`/api/invoices/${id}/`, {
+                        headers: { 'X-CSRFToken': this.csrfToken }
+                    });
+                    this.fetchInvoices();
+                    Swal.fire('Deleted!', 'Invoice deleted successfully.', 'success');
+                } catch (error) {
+                    console.error('Error deleting invoice:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to delete invoice'
+                    });
+                }
+            }
         },
         viewInvoice(id) {
             window.open(`/invoices/${id}/view/`, '_blank');
