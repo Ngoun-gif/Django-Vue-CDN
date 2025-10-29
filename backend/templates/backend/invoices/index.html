@@ -137,7 +137,7 @@
 
     <!-- Invoice Modal -->
     <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <form @submit.prevent="saveInvoice" novalidate>
                     <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken">
@@ -146,38 +146,57 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" :disabled="isLoading"></button>
                     </div>
                     <div class="modal-body">
+
                         <!-- Creation Method Selection -->
                         <div class="row mb-4" v-if="status === 'add'">
-                            <div class="col-12">
-                                <label class="form-label fw-bold">Create Invoice From:</label>
-                                <div class="d-flex gap-3">
-                                    <div class="form-check">
-                                        <input
-                                            class="form-check-input"
-                                            type="radio"
-                                            v-model="creationMethod"
-                                            value="manual"
-                                            id="manualMethod"
-                                        >
-                                        <label class="form-check-label" for="manualMethod">
-                                            Manual Entry
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input
-                                            class="form-check-input"
-                                            type="radio"
-                                            v-model="creationMethod"
-                                            value="booking"
-                                            id="bookingMethod"
-                                        >
-                                        <label class="form-check-label" for="bookingMethod">
-                                            From Booking
-                                        </label>
-                                    </div>
+                          <div class="col-12">
+                            <label class="form-label fw-semibold mb-3 text-secondary">Create Invoice From:</label>
+                            <div class="creation-method d-flex flex-wrap gap-3">
+
+                              <!-- Manual Entry -->
+                              <div
+                                class="method-option"
+                                :class="{ 'active': creationMethod === 'manual' }"
+                                @click="creationMethod = 'manual'"
+                              >
+                                <div class="icon-wrap">
+                                  <i class="fas fa-pen"></i>
                                 </div>
+                                <div class="method-text">
+                                  <h6 class="fw-semibold mb-1">Manual Entry</h6>
+                                  <p class="text-muted small mb-0">
+                                    Create an invoice from scratch by manually entering all details
+                                  </p>
+                                </div>
+                                <div class="check-icon">
+                                  <i class="fas fa-circle-check"></i>
+                                </div>
+                              </div>
+
+                              <!-- From Booking -->
+                              <div
+                                class="method-option"
+                                :class="{ 'active': creationMethod === 'booking' }"
+                                @click="creationMethod = 'booking'"
+                              >
+                                <div class="icon-wrap">
+                                  <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <div class="method-text">
+                                  <h6 class="fw-semibold mb-1">From Booking</h6>
+                                  <p class="text-muted small mb-0">
+                                    Generate an invoice automatically from an existing booking
+                                  </p>
+                                </div>
+                                <div class="check-icon">
+                                  <i class="fas fa-circle-check"></i>
+                                </div>
+                              </div>
+
                             </div>
+                          </div>
                         </div>
+
 
                         <!-- Booking Selection (when creation method is 'booking') -->
                         <div class="row mb-3" v-if="status === 'add' && creationMethod === 'booking'">
@@ -507,6 +526,72 @@
 </div>
 
 <style>
+
+.creation-method {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.method-option {
+  position: relative;
+  flex: 1 1 250px;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border: 1.5px solid #d9e2f3;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+}
+
+.method-option:hover {
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.method-option.active {
+  border-color: #4a90e2;
+  background-color: #f0f6ff;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.25);
+}
+
+.icon-wrap {
+  width: 40px;
+  height: 40px;
+  background-color: #e7f1ff;
+  color: #4a90e2;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.method-text h6 {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.method-text p {
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+
+.check-icon {
+  margin-left: auto;
+  color: #4a90e2;
+  font-size: 1.25rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.method-option.active .check-icon {
+  opacity: 1;
+}
+
 .loading-overlay {
     position: fixed;
     top: 0;
@@ -745,6 +830,16 @@
 
 .booking-services-info {
     margin-top: 0.5rem;
+}
+.cursor-pointer {
+    cursor: pointer;
+}
+.method-card:hover {
+    background-color: #f8f9fa;
+}
+.method-card.active {
+    border-color: #0d6efd;
+    background-color: #f0f8ff;
 }
 </style>
 
