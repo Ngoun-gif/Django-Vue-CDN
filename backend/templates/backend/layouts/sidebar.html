@@ -49,10 +49,10 @@
                 <i class="fas fa-building"></i>
                 <span>Branches</span>
             </a>
-            
-            <div id="collapsebranches" class="collapse {% if request.path == '/admins/branch/' or request.path == '/staff/branch/' %}show{% endif %}" data-parent="#accordionSidebar">
+
+            <div id="collapseBranches" class="collapse {% if request.path == '/admins/branch/' or request.path == '/staff/branch/' %}show{% endif %}" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item {% if request.path == '/admins/branch/' or request.path == '/staff/branch/' %}active{% endif %}" 
+                    <a class="collapse-item {% if request.path == '/admins/branch/' or request.path == '/staff/branch/' %}active{% endif %}"
                       href="{% if user|has_role:'Admins' %}{% url 'role_branch' role='admins' %}{% else %}{% url 'role_branch' role='staff' %}{% endif %}">
                         List Branch
                     </a>
@@ -71,7 +71,7 @@
             </a>
             <div id="collapseBooking" class="collapse {% if request.path == '/admins/booking/' or request.path == '/staff/booking/' %}show{% endif %}" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item {% if request.path == '/admins/booking/' or request.path == '/staff/booking/' %}active{% endif %}" 
+                    <a class="collapse-item {% if request.path == '/admins/booking/' or request.path == '/staff/booking/' %}active{% endif %}"
                         href="{% if user|has_role:'Admins' %}{% url 'role_booking' role='admins' %}{% else %}{% url 'role_booking' role='staff' %}{% endif %}">
                         List Booking
                     </a>
@@ -90,14 +90,14 @@
             </a>
             <div id="collapseCustomer" class="collapse {% if request.path == '/admins/customer/' or request.path == '/staff/customer/' %}show{% endif %}" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item {% if request.path == '/admins/customer/' or request.path == '/staff/customer/' %}active{% endif %}" 
+                    <a class="collapse-item {% if request.path == '/admins/customer/' or request.path == '/staff/customer/' %}active{% endif %}"
                        href="{% if user|has_role:'Admins' %}{% url 'role_customer' role='admins' %}{% else %}{% url 'role_customer' role='staff' %}{% endif %}">
                         List Customer
                     </a>
                 </div>
             </div>
         </li>
-        
+
          <!-- Service -->
         <li class="nav-item">
             <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseService"
@@ -107,7 +107,7 @@
             </a>
              <div id="collapseService" class="collapse {% if request.path == '/admins/service/' or request.path == '/staff/service/' %}show{% endif %}" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                     <a class="collapse-item {% if request.path == '/admins/service/' or request.path == '/staff/service/' %}active{% endif %}" 
+                     <a class="collapse-item {% if request.path == '/admins/service/' or request.path == '/staff/service/' %}active{% endif %}"
                        href="{% if user|has_role:'Admins' %}{% url 'role_service' role='admins' %}{% else %}{% url 'role_service' role='staff' %}{% endif %}">
                         List Service
                     </a>
@@ -116,7 +116,7 @@
         </li>
     {% endif %}
 
-   
+
     {% if user|has_role:"Admins" %}
         <!-- Categories -->
         <li class="nav-item">

@@ -99,14 +99,12 @@
                         <span v-else class="text-muted">N/A</span>
                     </td>
                     <td style="display: flex; gap: 0.5rem; justify-content: center;">
-                        <button class="btn btn-sm btn-info" @click="viewInvoice(invoice.id)" :disabled="isLoading">
-                            <i class="fas fa-eye"></i>
-                        </button>
+
                         <button class="btn btn-sm btn-warning" @click="openModal('edit', invoice)" :disabled="isLoading">
-                            <i class="fas fa-edit"></i>
+                           Edit
                         </button>
                         <button class="btn btn-sm btn-danger" @click="deleteInvoice(invoice.id)" :disabled="isLoading">
-                            <i class="fas fa-trash"></i>
+                            Delete
                         </button>
                     </td>
                 </tr>
